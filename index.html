@@ -10861,9 +10861,12 @@ save = function () {
 manualSave = function () { mobSync(true); };
 
 /* ---------- المزامنة ---------- */
-async function mobCall(op, body) {
-  if (!MOB.cfg || !MOB.cfg.url) throw new Error('الموبايل مش مربوط');
-  const r = await fetch(MOB.cfg.url, { method: 'POST', body: JSON.stringify(Object.assign({ op, key: MOB.cfg.key }, body || {})) });
+async function mobCall(op, body, cfg) {
+  cfg = cfg || MOB.cfg;
+  if (!cfg || !cfg.url) throw new Error('الموبايل مش مربوط');
+  let r;
+  try { r = await fetch(cfg.url, { method: 'POST', body: JSON.stringify(Object.assign({ op, key: cfg.key }, body || {})) }); }
+  catch (e) { throw new Error('مفيش اتصال بسكربت جوجل (' + (e.message || e) + ')'); }
   if (!r.ok) throw new Error('السيرفر رد بـ ' + r.status);
   let j; try { j = await r.json(); } catch (e) { throw new Error('رد مش مفهوم — اتأكد من الرابط'); }
   if (!j.ok) throw new Error(j.error || 'رد غلط');
@@ -10893,7 +10896,7 @@ function mobReload() {
   if (!locked) render();
 }
 async function mobSync(manual) {
-  if (MOB.busy || !MOB.cfg) return;
+  if (MOB.busy || !MOB.cfg || MOB.connecting) return;
   if (!navigator.onLine) { MOB.online = false; mobPaint(); if (manual) toast('مفيش نت — هيتبعت أول ما النت يرجع', 'err'); return; }
   MOB.busy = true; mobPaint();
   try {
@@ -10943,18 +10946,24 @@ async function mobConnect() {
   let url = ($('#mUrl').value || '').trim(), key = ($('#mKey').value || '').trim();
   /* كود الموبايل من اللاب = الرابط#الكود في سطر واحد */
   if (url.indexOf('#') > -1) { key = url.slice(url.indexOf('#') + 1).trim(); url = url.slice(0, url.indexOf('#')).trim(); }
-  const err = t => { $('#mSetErr').textContent = t; };
+  /* الرسالة بتظهر تحت الخانة، ولو الشاشة اتغيرت بتطلع كرسالة عادية */
+  const err = t => { const el = document.getElementById('mSetErr'); if (el) el.textContent = t; else toast(t, 'err'); if (t !== 'بيوصل…') logErr('mobConnect', t); };
   if (!/^https:\/\//.test(url) && !/^http:\/\/localhost[:/]/.test(url)) return err('الرابط لازم يبدأ بـ https://');
   if (key.length < 8) return err('الكود ناقص');
   err('بيوصل…');
-  const old = MOB.cfg; MOB.cfg = { url, key };
+  const cfg = { url, key };
+  MOB.connecting = true;
+  let step = 'الاتصال';
   try {
-    const j = await mobCall('snap_get', { have: '' });
-    if (!j.data) { MOB.cfg = old; return err('اتربط، بس اللاب لسه مابعتش نسخة — افتح البرنامج على اللاب الأول'); }
-    await IDB.set('cfg', MOB.cfg);
+    const j = await mobCall('snap_get', { have: '' }, cfg);
+    if (!j.data) return err('اتربط، بس اللاب لسه مابعتش نسخة — افتح البرنامج على اللاب الأول');
+    step = 'الحفظ على التليفون';
+    await IDB.set('cfg', cfg);
     await mobSetBase(j.data, j.at);
+    MOB.cfg = cfg;
     location.reload();
-  } catch (e) { MOB.cfg = old; err('مقدرتش أوصل: ' + e.message); }
+  } catch (e) { err('مقدرتش أكمّل (' + step + '): ' + (e && e.message || e)); }
+  finally { MOB.connecting = false; }
 }
 
 /* ---------- شاشة المزامنة ---------- */
