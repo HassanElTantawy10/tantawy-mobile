@@ -10942,8 +10942,16 @@ function viewSetup() {
     <button class="btn navy" style="width:100%;justify-content:center" onclick="mobConnect()">اربط وهات الحسابات</button>
   </div>`;
 }
-async function mobConnect() {
-  let url = ($('#mUrl').value || '').trim(), key = ($('#mKey').value || '').trim();
+/* رابط الربط: لو البرنامج اتفتح من رابط آخره #c=… بيتربط لوحده من غير ما تلصق حاجة.
+   ولو اتضاف للشاشة الرئيسية من الرابط ده، الأيقونة نفسها بتفتح بيه. */
+function mobCodeFromUrl() {
+  const m = /[#&]c=([^&]+)/.exec(location.hash || '');
+  if (!m) return '';
+  try { return decodeURIComponent(m[1]); } catch (e) { return ''; }
+}
+function mobConnect() { return mobConnectWith(($('#mUrl').value || '').trim(), ($('#mKey').value || '').trim()); }
+async function mobConnectWith(url, key) {
+  url = url || ''; key = key || '';
   /* كود الموبايل من اللاب = الرابط#الكود في سطر واحد */
   if (url.indexOf('#') > -1) { key = url.slice(url.indexOf('#') + 1).trim(); url = url.slice(0, url.indexOf('#')).trim(); }
   /* الرسالة بتظهر تحت الخانة، ولو الشاشة اتغيرت بتطلع كرسالة عادية */
@@ -11130,7 +11138,11 @@ new MutationObserver(() => {
   const el = document.querySelector(s);
   if (el) new MutationObserver(() => { mobHideDenied(el); if (s === '#modalRoot') mobCards(el); }).observe(el, { childList: true, subtree: true });
 });
-MOB.ready.then(() => { mobPaint(); if (MOB.cfg) setTimeout(mobSync, 800); });
+MOB.ready.then(() => {
+  mobPaint();
+  if (MOB.cfg) setTimeout(mobSync, 800);
+  else { const c = mobCodeFromUrl(); if (c) setTimeout(() => mobConnectWith(c, ''), 300); }
+});
 
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>

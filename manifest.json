@@ -3,7 +3,6 @@
  "short_name": "الطنطاوي",
  "lang": "ar",
  "dir": "rtl",
- "start_url": "./",
  "scope": "./",
  "display": "standalone",
  "background_color": "#F1F5F9",
