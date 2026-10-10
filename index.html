@@ -10775,6 +10775,13 @@ function printRates() {
    ٢. المزامنة مع اللاب عن طريق سكربت جوجل (Apps Script) اللي في حسابك.
    ٣. شكل الموبايل: شريط فوق، تبويب تحت، الجداول كروت. */
 
+/* «Script error.» من غير أي تفاصيل = خطأ من برة البرنامج (سفاري أو إضافة فيه) — بنسجّله بس من غير ما نطلّع بانر */
+const _showCrash = showCrash;
+showCrash = function (msg, err) {
+  if (!err && /^Script error\.?$/i.test(String(msg || ''))) { try { logErr('external', String(msg)); } catch (e) { } return; }
+  return _showCrash.apply(this, arguments);
+};
+
 /* ---------- حاجات اللاب بس ---------- */
 allowUnload = true;                       // من غير رسالة «متأكد إنك عايز تقفل؟» على الموبايل
 tgTick = async function () { };           // التليجرام بيتبعت من اللاب
@@ -10806,10 +10813,11 @@ function mobAllPays(st) {
   (st.parties || []).forEach(p => (p.accounts || []).forEach(a => (a.payments || []).forEach(y => out.push({ p, a, y }))));
   return out;
 }
-/* الجزء اللي ممنوع يتغير على الموبايل = كل البيانات ما عدا سدادات الموبايل */
-function mobDataPart(st, mobIds) {
+/* الجزء اللي ممنوع يتغير على الموبايل = كل البيانات ما عدا السدادات
+   (السدادات كلها — الجديدة والقديمة — تتضاف وتتعدل وتتمسح من الموبايل، واللاب بيطبّق) */
+function mobDataPart(st) {
   const parties = (st.parties || []).map(p => Object.assign({}, p, {
-    accounts: (p.accounts || []).map(a => Object.assign({}, a, { payments: (a.payments || []).filter(y => !mobIds.has(y.id)) }))
+    accounts: (p.accounts || []).map(a => Object.assign({}, a, { payments: [] }))
   }));
   return JSON.stringify([parties, st.expenses || [], st.labor || [], st.custody || [], st.templates || [], st.income || []]);
 }
@@ -10817,41 +10825,53 @@ function mobCaptureRef() {
   const st = JSON.parse(JSON.stringify(fullState()));
   const ob = new Set(MOB.outbox.map(e => e.id));
   MOB.refState = st;
-  MOB.refPayIds = new Set(mobAllPays(st).map(x => x.y.id).filter(id => !ob.has(id)));
+  MOB.refData = mobDataPart(st);
+  /* نسخة اللاب من كل سداد (اللي مالوش تعديل على الموبايل) — عشان نعرف اتغير ولا لأ */
+  MOB.refBase = new Map();
+  mobAllPays(st).forEach(({ p, a, y }) => {
+    if (!ob.has(y.id)) MOB.refBase.set(y.id, { pid: p.id, aid: a.id, pname: p.name, aname: a.name, pay: y, json: JSON.stringify(y) });
+  });
   MOB.good = JSON.stringify(st);
 }
 function mobRevert(msg) {
   try { applyState(JSON.parse(MOB.good)); } catch (e) { logErr('mobRevert', e.message); }
   closeModal(); render();
-  toast(msg || 'التعديل ده بيتعمل من اللاب بس — على الموبايل تقدر تضيف سداد', 'err');
+  toast(msg || 'التعديل ده بيتعمل من اللاب بس — على الموبايل تقدر تضيف أو تعدّل أو تمسح سداد', 'err');
 }
 save = function () {
   dirty = false;
   if (!MOB.base || !MOB.refState) return;
   let cur;
   try { cur = JSON.parse(JSON.stringify(fullState())); } catch (e) { logErr('mobSave', e.message); return; }
-  const curPays = mobAllPays(cur);
-  const mobIds = new Set(MOB.outbox.map(e => e.id));
-  curPays.forEach(x => { if (!MOB.refPayIds.has(x.y.id)) mobIds.add(x.y.id); });
-  if (mobDataPart(cur, mobIds) !== mobDataPart(MOB.refState, mobIds)) return mobRevert();
+  if (mobDataPart(cur) !== MOB.refData) return mobRevert();
 
-  /* السدادات اللي اتضافت أو اتعدلت أو اتمسحت على الموبايل */
+  const now = new Date().toISOString();
   const seen = new Set();
-  curPays.forEach(({ p, a, y }) => {
-    if (!mobIds.has(y.id)) return;
+  mobAllPays(cur).forEach(({ p, a, y }) => {
     seen.add(y.id);
+    const pay = JSON.parse(JSON.stringify(y)), json = JSON.stringify(pay);
     let e = MOB.outbox.find(z => z.id === y.id);
-    if (!e) { e = { id: y.id, rev: 0, sentRev: -1, created: new Date().toISOString() }; MOB.outbox.push(e); }
-    const pay = JSON.parse(JSON.stringify(y));
-    if (e.del || e.pid !== p.id || e.aid !== a.id || JSON.stringify(e.pay) !== JSON.stringify(pay)) {
-      Object.assign(e, { pid: p.id, aid: a.id, pname: p.name, aname: a.name, pay, del: false, rev: e.rev + 1, at: new Date().toISOString() });
+    if (!e) {
+      const b = MOB.refBase.get(y.id);
+      if (b && b.json === json && b.aid === a.id) return;          // سداد من اللاب ماتغيرش
+      e = { id: y.id, rev: 0, sentRev: -1, base: !!b, created: now };
+      MOB.outbox.push(e);
+    }
+    if (e.del || e.pid !== p.id || e.aid !== a.id || JSON.stringify(e.pay) !== json) {
+      Object.assign(e, { pid: p.id, aid: a.id, pname: p.name, aname: a.name, pay, del: false, rev: e.rev + 1, at: now });
     }
   });
+  /* اللي اتمسح */
   MOB.outbox = MOB.outbox.filter(e => {
     if (seen.has(e.id) || e.del) return true;
-    if (e.sentRev < 0) return false;                       // عمره ما اتبعت — يتشال وخلاص
-    Object.assign(e, { del: true, rev: e.rev + 1, at: new Date().toISOString() });  // اتبعت — نبعت إنه اتمسح
+    if (!e.base && e.sentRev < 0) return false;            // جديد واتمسح قبل ما يتبعت — يتشال وخلاص
+    Object.assign(e, { del: true, rev: e.rev + 1, at: now });
     return true;
+  });
+  MOB.refBase.forEach((b, id) => {
+    if (seen.has(id) || MOB.outbox.some(e => e.id === id)) return;
+    MOB.outbox.push({ id, rev: 1, sentRev: -1, base: true, del: true, created: now, at: now,
+      pid: b.pid, aid: b.aid, pname: b.pname, aname: b.aname, pay: b.pay });
   });
   MOB.good = JSON.stringify(cur);
   IDB.set('outbox', MOB.outbox).catch(e => toast('مقدرتش أحفظ على التليفون: ' + e.message, 'err'));
@@ -10875,17 +10895,25 @@ async function mobCall(op, body, cfg) {
 function mobPendingCount() { return MOB.outbox.filter(e => !e.del).length; }
 
 /* نسخة جديدة من اللاب: نشيل من الطابور اللي اللاب دخّله، ونرسم من جديد */
-function mobPrune(data) {
-  const baseIds = new Set(mobAllPays(JSON.parse(data)).map(x => x.y.id));
+/* نشيل من الطابور اللي اللاب طبّقه فعلاً */
+function mobPrune(data, at) {
+  const inBase = new Map();
+  mobAllPays(JSON.parse(data)).forEach(({ a, y }) => inBase.set(y.id, { aid: a.id, y }));
+  const same = (e, b) => b && b.aid === e.aid && ['amount', 'date', 'method', 'note', 'kind', 'recv', 'treasury', 'cheque']
+    .every(k => String(b.y[k] == null ? '' : b.y[k]) === String(e.pay[k] == null ? '' : e.pay[k]));
   const n = MOB.outbox.length;
   MOB.outbox = MOB.outbox.filter(e => {
     if (e.sentRev !== e.rev) return true;                  // لسه فيه تعديل مابعتناهوش
-    return e.del ? baseIds.has(e.id) : !baseIds.has(e.id);
+    const b = inBase.get(e.id);
+    if (e.del) return !!b;                                 // اللاب لسه ما مسحهوش
+    if (same(e, b)) return false;                          // اللاب دخّله زي ما هو
+    if (b && at && e.sentAt && at > new Date(Date.parse(e.sentAt) + 10 * 60000).toISOString()) return false;
+    return true;
   });
   return MOB.outbox.length !== n;
 }
 async function mobSetBase(data, at) {
-  mobPrune(data);
+  mobPrune(data, at);
   MOB.base = data; MOB.baseAt = at;
   await IDB.set('base', data); await IDB.set('baseAt', at); await IDB.set('outbox', MOB.outbox);
 }
@@ -10904,8 +10932,8 @@ async function mobSync(manual) {
     const send = MOB.outbox.filter(e => e.sentRev < e.rev);
     if (send.length) {
       await mobCall('pay_put', { items: send.map(e => ({ id: e.id, rev: e.rev, pid: e.pid, aid: e.aid, pname: e.pname, aname: e.aname, pay: e.pay, del: !!e.del, at: e.at })) });
-      send.forEach(e => { e.sentRev = e.rev; });
-      mobPrune(MOB.base);                                   // مسح اتبعت لسداد اللاب ماشافهوش أصلاً
+      send.forEach(e => { e.sentRev = e.rev; e.sentAt = new Date().toISOString(); });
+      mobPrune(MOB.base, MOB.baseAt);                                   // مسح اتبعت لسداد اللاب ماشافهوش أصلاً
       await IDB.set('outbox', MOB.outbox);
     }
     /* ٢. نجيب آخر نسخة من اللاب لو فيه أحدث */
@@ -10982,7 +11010,7 @@ function viewSync() {
       : e.sentRev < e.rev ? '<span class="chip amber">لسه على الموبايل</span>'
       : '<span class="chip blue">وصل — مستني اللاب يتفتح</span>';
     return `<tr><td>${esc(e.pname || '')}</td><td>${esc(e.aname || '')}</td>
-      <td class="num">${e.del ? '<s>' + fmt2(e.pay && e.pay.amount) + '</s> (اتمسح)' : fmt2(e.pay && e.pay.amount)}</td>
+      <td class="num">${e.del ? '<s>' + fmt2(e.pay && e.pay.amount) + '</s> (مسح)' : fmt2(e.pay && e.pay.amount) + (e.base ? ' (تعديل)' : '')}</td>
       <td>${e.pay && e.pay.date ? dsp(e.pay.date) : '—'}</td><td>${st}</td></tr>`;
   }).join('');
   return `<div class="topbar"><div><h1 class="page">المزامنة مع اللاب</h1>
@@ -10996,7 +11024,7 @@ function viewSync() {
       <button class="btn navy" onclick="mobSync(true)">زامن دلوقتي</button>
       <button class="btn" onclick="UI.view='setup';render()">تغيير الربط</button></div>
   </div>
-  <div class="card" style="margin-top:12px"><div class="card-h"><div class="card-t">سدادات من الموبايل لسه اللاب مادخلهاش (${MOB.outbox.length})</div></div>
+  <div class="card" style="margin-top:12px"><div class="card-h"><div class="card-t">حركات سداد من الموبايل لسه اللاب ماطبّقهاش (${MOB.outbox.length})</div></div>
     <div class="tbl-wrap"><table><thead><tr><th>الطرف</th><th>الحساب</th><th>المبلغ</th><th>التاريخ</th><th>الحالة</th></tr></thead>
     <tbody>${rows || '<tr><td colspan="5" class="empty">مفيش — كله وصل اللاب ✓</td></tr>'}</tbody></table></div></div>`;
 }
@@ -11030,7 +11058,8 @@ function mobHideDenied(root) {
     if (el.closest('.mbar,.mtabs,.mdrawer')) return;
     const code = (el.getAttribute('onclick') || '') + ' ' + (el.getAttribute('onchange') || '') + ' ' + (el.getAttribute('ondblclick') || '');
     const fns = code.match(/[A-Za-z_]\w*(?=\s*\()/g) || [];
-    if (fns.some(f => MOB_DENY.has(f))) {
+    const payDel = /delRow\(\s*'[^']*'\s*,\s*'[^']*'\s*,\s*'p'/.test(code) && !fns.some(f => f !== 'delRow' && f !== 'closeModal' && MOB_DENY.has(f));
+    if (!payDel && fns.some(f => MOB_DENY.has(f))) {
       if (el.matches('button,.btn,a,label,select,input[type=checkbox]') || el.closest('.modal-f,.ctx,#ctxRoot')) el.classList.add('mob-hide');
       else el.removeAttribute('ondblclick');
     }
@@ -11103,8 +11132,9 @@ function mobBanner() {
   const orphan = MOB.outbox.filter(e => e.orphan);
   let h = '';
   if (orphan.length) h += `<div class="mban err">⚠ ${orphan.length} سداد حسابه اتمسح على اللاب — هيستناك على اللاب تختارله حساب.</div>`;
-  const mine = UI.view === 'party' ? pend.filter(e => e.pid === UI.pid) : UI.view === 'dash' ? pend : [];
-  if (mine.length) h += `<div class="mban">⏳ ${mine.length === 1 ? 'سداد' : mine.length + ' سدادات'} متسجّل${mine.length === 1 ? '' : 'ين'} على الموبايل ومحسوب في الأرصدة — اللاب هيدخّل${mine.length === 1 ? 'ه' : 'هم'} أول ما يتفتح.
+  const all = MOB.outbox;
+  const mine = UI.view === 'party' ? all.filter(e => e.pid === UI.pid) : UI.view === 'dash' ? all : [];
+  if (mine.length) h += `<div class="mban">⏳ ${mine.length === 1 ? 'حركة سداد' : mine.length + ' حركات سداد'} من الموبايل (إضافة/تعديل/مسح) محسوبة في الأرصدة هنا — اللاب هيطبّقها أول ما يتفتح.
     <a href="javascript:void 0" onclick="go('sync')">التفاصيل</a></div>`;
   return h;
 }
