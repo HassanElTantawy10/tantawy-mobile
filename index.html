@@ -10901,20 +10901,22 @@ async function mobCall(op, body, cfg) {
 function mobPendingCount() { return MOB.outbox.filter(e => e.sentRev < e.rev).length; }
 
 /* نسخة جديدة من اللاب: نشيل من الطابور اللي اللاب دخّله، ونرسم من جديد */
-/* نشيل من الطابور اللي اللاب طبّقه فعلاً */
+/* نشيل من الطابور اللي اللاب طبّقه فعلاً.
+   اللاب بيبعت مع كل نسخة قايمة بالحركات اللي طبّقها (mobApplied) — أي حركة اتطبّقت بيبقى اللاب هو المرجع ليها،
+   حتى لو اتعدلت أو اتمسحت على اللاب بعد كده. */
 function mobPrune(data, at) {
+  const d = JSON.parse(data);
+  const applied = d.mobApplied;
   const inBase = new Map();
-  mobAllPays(JSON.parse(data)).forEach(({ a, y }) => inBase.set(y.id, { aid: a.id, y }));
-  const same = (e, b) => b && b.aid === e.aid && ['amount', 'date', 'method', 'note', 'kind', 'recv', 'treasury', 'cheque']
-    .every(k => String(b.y[k] == null ? '' : b.y[k]) === String(e.pay[k] == null ? '' : e.pay[k]));
+  mobAllPays(d).forEach(({ a, y }) => inBase.set(y.id, { aid: a.id, y }));
   const n = MOB.outbox.length;
   MOB.outbox = MOB.outbox.filter(e => {
     if (e.sentRev !== e.rev) return true;                  // لسه فيه تعديل مابعتناهوش
+    if (applied) return !((applied[e.id] || 0) >= e.rev);  // اللاب طبّقه → نسخة اللاب هي الصح
+    /* نسخة قديمة من اللاب من غير القايمة دي */
     const b = inBase.get(e.id);
-    if (e.del) return !!b;                                 // اللاب لسه ما مسحهوش
-    if (same(e, b)) return false;                          // اللاب دخّله زي ما هو
-    if (b && at && e.sentAt && at > new Date(Date.parse(e.sentAt) + 10 * 60000).toISOString()) return false;
-    return true;
+    if (e.del) return !!b;
+    return !b;
   });
   return MOB.outbox.length !== n;
 }
@@ -11041,11 +11043,22 @@ function viewSync() {
     ${MOB.lastErr ? `<div class="row" style="color:var(--red)"><span>آخر مشكلة</span><b>${esc(MOB.lastErr)}</b></div>` : ''}
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
       <button class="btn navy" onclick="mobSync(true)">زامن دلوقتي</button>
-      <button class="btn" onclick="UI.view='setup';render()">تغيير الربط</button></div>
+      <button class="btn" onclick="UI.view='setup';render()">تغيير الربط</button>
+      <button class="btn" onclick="mobResetToLaptop()">اعرض نسخة اللاب زي ما هي</button></div>
   </div>
   <div class="card" style="margin-top:12px"><div class="card-h"><div class="card-t">حركات من الموبايل في الطريق للاب (${MOB.outbox.length})</div></div>
     <div class="tbl-wrap"><table><thead><tr><th>الطرف</th><th>الحساب</th><th>المبلغ</th><th>التاريخ</th><th>الحالة</th></tr></thead>
     <tbody>${rows || '<tr><td colspan="5" class="empty">مفيش — كله وصل اللاب ✓</td></tr>'}</tbody></table></div></div>`;
+}
+/* لو حصل أي لخبطة: نرجع لنسخة اللاب بالظبط. اللي لسه ما اتبعتش بس هو اللي بيضيع (وبنقول عليه قبلها) */
+async function mobResetToLaptop() {
+  const unsent = MOB.outbox.filter(e => e.sentRev < e.rev).length;
+  const msg = unsent ? 'فيه ' + unsent + ' حركة لسه ما اتبعتتش للاب وهتضيع. تكمّل؟' : 'الموبايل هيعرض نسخة اللاب بالظبط. تكمّل؟';
+  if (!confirm(msg)) return;
+  MOB.outbox = []; await IDB.set('outbox', []);
+  MOB.baseAt = ''; await IDB.set('baseAt', '');
+  await mobSync(true);
+  mobReload();
 }
 VIEWS.sync = () => viewSync();
 VIEWS.setup = () => viewSetup();
