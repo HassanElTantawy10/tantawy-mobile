@@ -10790,6 +10790,7 @@ autoBackup = async function () { };       // النسخة الأصلية على 
 extBackupNow = async function () { return false; };
 mobileExport = async function () { return false; };
 
+const MOB_VER = '2026-10-11b';
 const MOB = {
   loaded: false, base: null, baseAt: '', outbox: [], cfg: null,
   refState: null, refPayIds: null, good: null,
@@ -10885,14 +10886,19 @@ async function mobCall(op, body, cfg) {
   cfg = cfg || MOB.cfg;
   if (!cfg || !cfg.url) throw new Error('الموبايل مش مربوط');
   let r;
-  try { r = await fetch(cfg.url, { method: 'POST', body: JSON.stringify(Object.assign({ op, key: cfg.key }, body || {})) }); }
-  catch (e) { throw new Error('مفيش اتصال بسكربت جوجل (' + (e.message || e) + ')'); }
+  /* مهلة ٤٠ ثانية: الآيفون ساعات بيوقف الطلب لما البرنامج يروح للخلفية ومايرجعش أبداً */
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const tm = setTimeout(() => { try { ctl && ctl.abort(); } catch (e) { } }, 40000);
+  try { r = await fetch(cfg.url, { method: 'POST', body: JSON.stringify(Object.assign({ op, key: cfg.key }, body || {})), signal: ctl ? ctl.signal : undefined }); }
+  catch (e) { throw new Error(e && e.name === 'AbortError' ? 'سكربت جوجل اتأخر في الرد' : 'مفيش اتصال بسكربت جوجل (' + (e.message || e) + ')'); }
+  finally { clearTimeout(tm); }
   if (!r.ok) throw new Error('السيرفر رد بـ ' + r.status);
   let j; try { j = await r.json(); } catch (e) { throw new Error('رد مش مفهوم — اتأكد من الرابط'); }
   if (!j.ok) throw new Error(j.error || 'رد غلط');
   return j;
 }
-function mobPendingCount() { return MOB.outbox.filter(e => !e.del).length; }
+/* اللي لسه ما اتبعتش من التليفون (مفيش نت مثلاً) — اللي اتبعت خلاص بيتطبّق على اللاب لوحده */
+function mobPendingCount() { return MOB.outbox.filter(e => e.sentRev < e.rev).length; }
 
 /* نسخة جديدة من اللاب: نشيل من الطابور اللي اللاب دخّله، ونرسم من جديد */
 /* نشيل من الطابور اللي اللاب طبّقه فعلاً */
@@ -10924,9 +10930,10 @@ function mobReload() {
   if (!locked) render();
 }
 async function mobSync(manual) {
-  if (MOB.busy || !MOB.cfg || MOB.connecting) return;
+  if (MOB.busy && Date.now() - (MOB.busySince || 0) < 90000) return;   // مزامنة شغالة فعلاً
+  if (!MOB.cfg || MOB.connecting) return;
   if (!navigator.onLine) { MOB.online = false; mobPaint(); if (manual) toast('مفيش نت — هيتبعت أول ما النت يرجع', 'err'); return; }
-  MOB.busy = true; mobPaint();
+  MOB.busy = true; MOB.busySince = Date.now(); mobPaint();
   try {
     /* ١. نبعت السدادات */
     const send = MOB.outbox.filter(e => e.sentRev < e.rev);
@@ -10950,7 +10957,19 @@ async function mobSync(manual) {
     MOB.lastErr = String(e.message || e);
     MOB.online = navigator.onLine;
     if (manual) toast('المزامنة فشلت: ' + MOB.lastErr, 'err');
-  } finally { MOB.busy = false; mobPaint(); }
+  } finally { MOB.busy = false; mobPaint(); mobDiag(); }
+}
+/* تشخيص: حالة المزامنة بتتبعت لسكربت جوجل (عدد وحالة الحركات بس) — مرة كل دقيقتين بالكتير */
+function mobDiag() {
+  if (!MOB.cfg || Date.now() - (MOB.lastDiag || 0) < 120000) return;
+  MOB.lastDiag = Date.now();
+  const d = {
+    at: new Date().toISOString(), ver: MOB_VER, baseAt: MOB.baseAt, lastPull: MOB.lastPull, lastErr: MOB.lastErr,
+    online: navigator.onLine, standalone: !!(navigator.standalone || matchMedia('(display-mode: standalone)').matches),
+    errs: (typeof errLog !== 'undefined' ? errLog : []).slice(0, 6).map(e => e.at.slice(11, 19) + ' ' + e.where + ': ' + String(e.msg).slice(0, 160)),
+    outbox: MOB.outbox.slice(0, 25).map(e => ({ id: e.id, rev: e.rev, sent: e.sentRev, del: !!e.del, base: !!e.base, orphan: !!e.orphan, a: e.aname, amt: e.pay && e.pay.amount }))
+  };
+  mobCall('diag', { who: 'phone', d }).catch(() => { });
 }
 setInterval(() => { if (!document.hidden) mobSync(); }, 60000);
 window.addEventListener('online', () => { MOB.online = true; mobSync(); });
@@ -11008,7 +11027,7 @@ function viewSync() {
   const rows = MOB.outbox.map(e => {
     const st = e.orphan ? '<span class="chip red">الحساب مش موجود على اللاب</span>'
       : e.sentRev < e.rev ? '<span class="chip amber">لسه على الموبايل</span>'
-      : '<span class="chip blue">وصل — مستني اللاب يتفتح</span>';
+      : '<span class="chip blue">اتبعت ✓</span>';
     return `<tr><td>${esc(e.pname || '')}</td><td>${esc(e.aname || '')}</td>
       <td class="num">${e.del ? '<s>' + fmt2(e.pay && e.pay.amount) + '</s> (مسح)' : fmt2(e.pay && e.pay.amount) + (e.base ? ' (تعديل)' : '')}</td>
       <td>${e.pay && e.pay.date ? dsp(e.pay.date) : '—'}</td><td>${st}</td></tr>`;
@@ -11024,7 +11043,7 @@ function viewSync() {
       <button class="btn navy" onclick="mobSync(true)">زامن دلوقتي</button>
       <button class="btn" onclick="UI.view='setup';render()">تغيير الربط</button></div>
   </div>
-  <div class="card" style="margin-top:12px"><div class="card-h"><div class="card-t">حركات سداد من الموبايل لسه اللاب ماطبّقهاش (${MOB.outbox.length})</div></div>
+  <div class="card" style="margin-top:12px"><div class="card-h"><div class="card-t">حركات من الموبايل في الطريق للاب (${MOB.outbox.length})</div></div>
     <div class="tbl-wrap"><table><thead><tr><th>الطرف</th><th>الحساب</th><th>المبلغ</th><th>التاريخ</th><th>الحالة</th></tr></thead>
     <tbody>${rows || '<tr><td colspan="5" class="empty">مفيش — كله وصل اللاب ✓</td></tr>'}</tbody></table></div></div>`;
 }
@@ -11080,7 +11099,7 @@ function mobCards(root) {
 }
 /* السدادات اللي لسه على الموبايل بتتعلّم في الدفتر */
 function mobMarkPending(root) {
-  const ids = MOB.outbox.filter(e => !e.del).map(e => e.id);
+  const ids = MOB.outbox.filter(e => !e.del && e.sentRev < e.rev).map(e => e.id);   // اللي لسه ما اتبعتش بس
   if (!ids.length) return;
   root.querySelectorAll('tr[onclick],tr[oncontextmenu]').forEach(tr => {
     const code = (tr.getAttribute('onclick') || '') + (tr.getAttribute('oncontextmenu') || '');
@@ -11132,10 +11151,9 @@ function mobBanner() {
   const orphan = MOB.outbox.filter(e => e.orphan);
   let h = '';
   if (orphan.length) h += `<div class="mban err">⚠ ${orphan.length} سداد حسابه اتمسح على اللاب — هيستناك على اللاب تختارله حساب.</div>`;
-  const all = MOB.outbox;
-  const mine = UI.view === 'party' ? all.filter(e => e.pid === UI.pid) : UI.view === 'dash' ? all : [];
-  if (mine.length) h += `<div class="mban">⏳ ${mine.length === 1 ? 'حركة سداد' : mine.length + ' حركات سداد'} من الموبايل (إضافة/تعديل/مسح) محسوبة في الأرصدة هنا — اللاب هيطبّقها أول ما يتفتح.
-    <a href="javascript:void 0" onclick="go('sync')">التفاصيل</a></div>`;
+  const unsent = MOB.outbox.filter(e => e.sentRev < e.rev);
+  if (unsent.length && (UI.view === 'dash' || UI.view === 'party')) h += `<div class="mban">📶 ${unsent.length === 1 ? 'حركة' : unsent.length + ' حركات'} لسه ما اتبعتتش — هتتبعت لوحدها أول ما النت يرجع.
+    <a href="javascript:void 0" onclick="mobSync(true)">ابعت دلوقتي</a></div>`;
   return h;
 }
 
