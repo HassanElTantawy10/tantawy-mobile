@@ -6481,7 +6481,7 @@ function openItem(pid, aid, iid) {
     <div class="grid2">
       <div class="f"><label>البند / الصنف *</label><input id="iDesc" value="${esc(it ? it.desc : '')}" oninput="priceHint('${pid}');projHint()" placeholder="${isSup ? 'مثال: طن اسمنت 32.5' : 'مثال: سقف الأرضي المنخفض الأول'}">
         <div id="priceHint" class="hint-k"></div></div>
-      <div class="f"><label>التاريخ</label><input id="iDate" data-date value="${it && it.date ? dsp(it.date) : dsp(todayISO())}"></div>
+      <div class="f"><label>التاريخ</label><input id="iDate" data-date value="${it ? (it.date ? dsp(it.date) : '') : dsp(todayISO())}"${it && !it.date ? ' placeholder="من غير تاريخ — اكتبه لو تعرفه"' : ''}></div>
     </div>
     <div class="grid3">
       <div class="f"><label>العدد / الكمية</label><input id="iQty" data-money data-live="calcItem" value="${it ? fmtMoney(it.qty) : '1'}"></div>
@@ -6701,7 +6701,7 @@ function openPay(pid, aid, yid) {
       <button class="btn sm" style="margin-inline-start:8px" onclick="$('#yAmount').value='${fmtMoney(rem)}';calcPay()">سدد الباقي كله</button></div>` : ''}
     <div class="grid2">
       <div class="f"><label>المبلغ *</label><input id="yAmount" class="money" data-money data-live="calcPay" value="${y ? fmtMoney(y.amount) : ''}"></div>
-      <div class="f"><label>تاريخ الدفع</label><input id="yDate" data-date data-live="calcPay" value="${y && y.date ? dsp(y.date) : dsp(todayISO())}"></div>
+      <div class="f"><label>تاريخ الدفع</label><input id="yDate" data-date data-live="calcPay" value="${y ? (y.date ? dsp(y.date) : '') : dsp(todayISO())}"${y && !y.date ? ' placeholder="من غير تاريخ — اكتبه لو تعرفه"' : ''}></div>
     </div>
     <div class="grid3">
       <div class="f"><label>نوع الصرف</label><select id="yKind" onchange="calcPay()">
@@ -10064,7 +10064,7 @@ function openIncome(id) {
       <div class="f"><label>النوع</label><input id="nCat" list="incCatList" value="${esc(x ? x.cat : 'تحصيل')}">
         <datalist id="incCatList">${INCOME_CATS.map(c => `<option>${c}</option>`).join('')}</datalist></div>
       <div class="f"><label>العميل (اختياري)</label><input id="nClient" value="${esc(x ? x.client : '')}" placeholder="اسم العميل"></div>
-      <div class="f"><label>التاريخ</label><input id="nDate" data-date value="${x && x.date ? dsp(x.date) : dsp(todayISO())}"></div>
+      <div class="f"><label>التاريخ</label><input id="nDate" data-date value="${x ? (x.date ? dsp(x.date) : '') : dsp(todayISO())}"${x && !x.date ? ' placeholder="من غير تاريخ — اكتبه لو تعرفه"' : ''}></div>
     </div>
     <div class="grid3">
       <div class="f"><label>المشروع (اختياري)</label><input id="nProj" list="incProjList" value="${esc(x ? (canonProject(x.project) === UNASSIGNED ? '' : canonProject(x.project)) : (UI.filterProject || ''))}">
@@ -10376,7 +10376,7 @@ function openExpense(id, custodyId) {
         <datalist id="catList">${EXPENSE_CATS.map(c => `<option>${c}</option>`).join('')}</datalist></div>
       <div class="f"><label>المشروع</label><input id="eProj" list="projList3" value="${esc(x ? x.project : (UI.filterProject || ''))}">
         <datalist id="projList3">${projectNames().map(p => `<option>${esc(p)}</option>`).join('')}</datalist></div>
-      <div class="f"><label>التاريخ</label><input id="eDate" data-date value="${x && x.date ? dsp(x.date) : dsp(todayISO())}"></div>
+      <div class="f"><label>التاريخ</label><input id="eDate" data-date value="${x ? (x.date ? dsp(x.date) : '') : dsp(todayISO())}"${x && !x.date ? ' placeholder="من غير تاريخ — اكتبه لو تعرفه"' : ''}></div>
     </div>
     <div class="grid2">
       <div class="f"><label>طريقة الدفع</label><input id="eMethod" list="methList3" value="${esc(x ? x.method : '')}">
