@@ -6270,7 +6270,8 @@ function wkConChange() {
 }
 function wkResolveNew() {
   const v = sval('wkCon');
-  if (v && v !== '__new') { wkConChange(); return; }
+  /* نرجع لاختيار الحساب بس لو المقاول ليه حسابات — من غير الشرط ده المقاول اللي مالوش حسابات كان بيعمل لفة مالهاش آخر */
+  if (v && v !== '__new') { const wp = findParty(v); if (wp && wp.accounts.some(a => !a.refOnly)) { wkConChange(); return; } }
   const box = $('#wkAccBox'); if (!box) return;
   const proj = sval('wkProj') ? canonProject(sval('wkProj')) : '';
   const nm = v === '__new' ? sval('wkNewName') : '';
@@ -10790,7 +10791,7 @@ autoBackup = async function () { };       // النسخة الأصلية على 
 extBackupNow = async function () { return false; };
 mobileExport = async function () { return false; };
 
-const MOB_VER = '2026-10-11b';
+const MOB_VER = '2026-10-11c';
 const MOB = {
   loaded: false, base: null, baseAt: '', outbox: [], cfg: null,
   refState: null, refPayIds: null, good: null,
@@ -10882,7 +10883,16 @@ save = function () {
 manualSave = function () { mobSync(true); };
 
 /* ---------- المزامنة ---------- */
+/* جوجل ساعات بيرد بصفحة خطأ مؤقتة بدل الرد — نجرّب تاني مرة كمان بعد ثانيتين */
 async function mobCall(op, body, cfg) {
+  try { return await mobCall1(op, body, cfg); }
+  catch (e) {
+    if (!/رد مش مفهوم|السيرفر رد/.test(e.message)) throw e;
+    await new Promise(r => setTimeout(r, 2000));
+    return mobCall1(op, body, cfg);
+  }
+}
+async function mobCall1(op, body, cfg) {
   cfg = cfg || MOB.cfg;
   if (!cfg || !cfg.url) throw new Error('الموبايل مش مربوط');
   let r;
