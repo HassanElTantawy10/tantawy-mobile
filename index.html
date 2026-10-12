@@ -735,6 +735,20 @@ function goBackNav() {
 }
 let saveTimer = null, dirty = false;
 const errLog = [];
+/* سجل الأخطاء بالعربي: الوقت بتوقيت الجهاز، والمكان باسم مفهوم */
+const ERR_WHERE = { mobPull: 'مزامنة الموبايل — سحب', mobPush: 'مزامنة الموبايل — رفع', mobBanner: 'تنبيهات الموبايل',
+  pdf: 'حفظ PDF', print: 'الطباعة', ask: 'رسالة تأكيد', fitPrint: 'مقاس الطباعة', tg: 'تليجرام' };
+function errWhen(at) {
+  const d = new Date(at); if (isNaN(d)) return esc(String(at || ''));
+  const p2 = n => String(n).padStart(2, '0');
+  return p2(d.getDate()) + '-' + p2(d.getMonth() + 1) + '-' + d.getFullYear() + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes()) + ':' + p2(d.getSeconds());
+}
+function errMsgAr(m) {
+  m = String(m || '');
+  if (/failed to fetch|networkerror|load failed|network request failed/i.test(m))
+    return 'مفيش اتصال بالنت ساعتها (أو جوجل مابيردش) — بيتجرب تاني لوحده كل دقيقة ومفيش حاجة بتضيع (' + m + ')';
+  return m;
+}
 /* سجل التعديلات — مين عمل إيه وإمتى */
 function logAction(type, text, extra) {
   if (!DB) return;
@@ -4449,8 +4463,8 @@ function viewDiag() {
       <span class="chip ${errLog.length ? 'amber' : 'emer'}">${errLog.length}</span></div>
     <div class="tbl-wrap"><table>
       <thead><tr><th style="width:130px">الوقت</th><th style="width:150px">المكان</th><th>الرسالة</th></tr></thead>
-      <tbody>${errLog.length ? errLog.map(e => `<tr><td>${dsp(e.at.slice(0, 10))} ${e.at.slice(11, 19)}</td>
-        <td><span class="chip gray">${esc(e.where)}</span></td><td style="font-size:12px">${esc(e.msg)}</td></tr>`).join('')
+      <tbody>${errLog.length ? errLog.map(e => `<tr><td>${errWhen(e.at)}</td>
+        <td><span class="chip gray" title="${esc(e.where)}">${esc(ERR_WHERE[e.where] || e.where)}</span></td><td style="font-size:12px">${esc(errMsgAr(e.msg))}</td></tr>`).join('')
       : '<tr><td colspan="3" class="empty"><div class="big">✓</div>مفيش أخطاء — البرنامج شغال تمام</td></tr>'}</tbody>
     </table></div>
   </div>
