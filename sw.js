@@ -1,6 +1,6 @@
 /* البرنامج يفتح من غير نت: بنحفظ نسخة من الصفحة على التليفون.
    لو فيه نت بنجيب الأحدث، ولو مفيش بنفتح المحفوظ. البيانات نفسها مش هنا — دي في IndexedDB. */
-const CACHE = 'tantawy-bc3ad96f19';
+const CACHE = 'tantawy-72a4e3eff9';
 const FILES = ['./', './index.html', './manifest.json', './icon-180.png', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', e => {

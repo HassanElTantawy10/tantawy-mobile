@@ -808,6 +808,35 @@ function accAmbiguousItems(a) {
   });
 }
 function accNoProjItems(a) { return accAmbiguousItems(a).length; }
+/* مشروع البند الفعلي — نفس اللي accProjectSplit بيحسب عليه التكلفة */
+function itemProjects(a, i) {
+  const raw = (i.proj || '').trim();
+  if (raw) return [canonProject(raw)];
+  const baseTokens = splitTokens(a.project).map(canonProject);
+  if (baseTokens.length > 1) {
+    const locTokens = splitTokens(i.loc).map(canonProject);
+    const hits = baseTokens.filter(t => locTokens.indexOf(t) > -1);
+    return hits.length ? hits : [accProject(a)];
+  }
+  return [accProject(a)];
+}
+/* خانة «المشروع / المكان» في دفتر الحساب */
+function projLocCell(a, r) {
+  const loc = (r.loc || '').trim();
+  const locHtml = loc ? `<div style="font-size:11.5px;color:var(--mut);margin-top:2px">${esc(loc)}</div>` : '';
+  if (r.k === 'w') {
+    const it = a.items.find(x => x.id === r.id) || r;
+    const pr = itemProjects(a, it).filter(x => x && x !== UNASSIGNED);
+    if (!pr.length) return `<span class="chip red" title="البند مش داخل في تكلفة أي مشروع — افتحه واختار المشروع">⚠ مالوش مشروع</span>${locHtml}`;
+    const other = pr.some(x => x !== accProject(a));
+    return pr.map(x => `<span class="chip ${other ? 'gold' : 'blue'}" ${other ? 'title="مشروع غير مشروع الحساب"' : ''}>${esc(x)}</span>`).join(' ') + locHtml;
+  }
+  if (r.k === 'p') {
+    const ap = accProject(a);
+    return (ap !== UNASSIGNED ? `<span style="font-size:11.5px;color:#94A3B8">${esc(ap)}</span>` : '') + locHtml;
+  }
+  return locHtml;
+}
 /* توزيع تكلفة الحساب على المشاريع — المورد أو المقاول الواحد ممكن يشتغل في أكتر من مشروع.
    لو البند له مشروع محدد بنفسه بنستخدمه. لو الحساب نفسه مجمّع على أكتر من مشروع («R-06 / R-07 / O.4»)
    وبند مالوش مشروع، بنستنتجه من خانة «المكان» لو بتطابق واحد من المشاريع دي. */
@@ -3307,7 +3336,7 @@ function accDetail(p, a) {
     </div>` : ''}
     <div class="tbl-wrap">
     <table><thead><tr>
-      <th style="width:92px">التاريخ</th><th>البند</th><th>المكان</th><th class="num">العدد</th><th class="num">السعر</th>
+      <th style="width:92px">التاريخ</th><th>البند</th><th>المشروع / المكان</th><th class="num">العدد</th><th class="num">السعر</th>
       <th class="num">المستحق</th>${hasDeductions ? '<th class="num">خصومات</th>' : ''}<th class="num">الواصل</th><th>طريقة الدفع</th><th class="num" style="width:105px">الرصيد</th><th class="no-print" style="width:92px"></th>
     </tr></thead><tbody>
     ${carryRow ? `<tr style="background:#FEF9C3;font-weight:800">
@@ -3318,7 +3347,7 @@ function accDetail(p, a) {
       ${r.k !== 'adj' ? `onclick="rowClick(event,'${r.k}','${r.id}',${ri})" oncontextmenu="rowMenu(event,'${r.k}','${r.id}',${ri})"` : ''}>
       <td style="white-space:nowrap">${r.date ? dsp(r.date) + (isLocked(r.date) ? ' <span title="فترة مقفولة">🔒</span>' : '') + (badDate(r.date) ? ' <span class="chip red" title="السنة في التاريخ ده غلط — بتبوّظ ترتيب الدفتر والكشف المطبوع">⚠ تاريخ غلط</span>' : '') : '<span class="chip nodate">بدون تاريخ</span>'}</td>
       <td>${r.floor ? `<span class="chip blue" title="الدور">${esc(r.floor)}</span> ` : ''}${r.k === 'p' ? payChip(r.kind) + ' ' : ''}${r.extra ? `<span class="chip ${r.extraOk ? 'gold' : 'red'}" title="${r.extraOk ? 'شغل إضافي معتمد' + (r.extraRef ? ' — ' + esc(r.extraRef) : '') : 'شغل إضافي لسه مش معتمد'}">⊕ إضافي${r.extraOk ? '' : ' مش معتمد'}</span> ` : ''}<b>${esc(r.desc || '—')}</b>${r.late ? ' <span class="chip gold" title="حركة قديمة اتسجلت بعد التصفية — محسوبة في الرصيد">⚠ اتضافت بعد التصفية</span>' : ''}${r.k === 'w' && r.pct != 100 ? ` <span class="chip gold">إنجاز ${fmt2(r.pct)}%</span>` : ''}${r.k === 'p' && r.cheque ? ' <span class="chip gray">شيك ' + esc(r.cheque) + '</span>' : ''}${r.photo ? ` <button class="btn sm ghost no-print" onclick="event.stopPropagation();viewPhoto('${p.id}','${a.id}','${r.k}','${r.id}')">📎</button>` : ''}</td>
-      <td style="color:var(--mut);font-size:12px">${r.k === 'w' && r.proj && r.proj !== accProject(a) ? '<span class="chip gold">' + esc(r.proj) + '</span> ' : ''}${esc(r.loc || '')}</td>
+      <td style="font-size:12px">${projLocCell(a, r)}</td>
       <td class="num">${r.k === 'w' && r.qty ? fmt2(r.qty) + ' ' + esc(r.unit || '') : ''}</td>
       <td class="num">${r.k === 'w' && r.price ? fmt2(r.price) : ''}</td>
       <td class="num">${r.k !== 'p' ? '<b>' + fmt2(r.amount) + '</b>' : ''}</td>
