@@ -5048,8 +5048,8 @@ function openGrid(pid, aid) {
     <td><input id="g${i}m" list="methListG" style="min-width:110px" placeholder="${i === 0 ? 'طريقة الدفع' : ''}"></td>
   </tr>`;
   modal('إدخال جماعي — ' + a.name, `
-    <div class="note">اكتب السطور ورا بعضها واحفظهم مرة واحدة. لو كتبت العدد والسعر، الإجمالي يتحسب لوحده.
-      استخدم <kbd>Tab</kbd> للتنقل. أي سطر فاضي بيتجاهل.</div>
+    <div class="note">اكتب السطور ورا بعضها واحفظهم مرة واحدة. لو كتبت العدد والسعر، الإجمالي يتحسب لوحده (ولو كتبته بإيدك بيتساب).
+      الوحدة: اكتب أول حرفين ودوس <kbd>Tab</kbd> — «مق» ← مقطوعية. أي سطر فاضي بيتجاهل.</div>
     <datalist id="unitListG">${UNITS.map(u => `<option>${u}</option>`).join('')}</datalist>
     <datalist id="methListG">${METHODS.map(m => `<option>${m}</option>`).join('')}</datalist>
     <div class="tbl-wrap" style="max-height:340px;border:1px solid var(--line);border-radius:10px">
@@ -5095,17 +5095,21 @@ function gridRows() {
   return out;
 }
 function gridCalc() {
+  const c = window._gridCtx; if (!c) return;
+  /* الإجمالي = العدد × السعر — بيتحدث مع كل حرف. data-auto=1 يعني البرنامج اللي حسبه؛
+     لو انت كتبت إجمالي بإيدك بيتساب، ولو مسحته يرجع يتحسب. */
+  for (let i = 0; i < c.rows; i++) {
+    const el = $('#g' + i + 'a'); if (!el) continue;
+    if (document.activeElement === el) { el.dataset.auto = num(el.value) ? '0' : ''; continue; }
+    if (el.dataset.auto === '0' && num(el.value)) continue;
+    const q = mval('g' + i + 'q'), pr = mval('g' + i + 'p');
+    if (q && pr) { el.value = fmtMoney(Math.round(q * pr * 100) / 100); el.dataset.auto = '1'; }
+    else if (el.dataset.auto === '1') { el.value = ''; el.dataset.auto = ''; }
+  }
   const rows = gridRows();
   const ti = rows.filter(r => r.amount).length, tp = rows.filter(r => r.paid).length;
   const si = rows.reduce((s, r) => s + r.amount, 0), sp = rows.reduce((s, r) => s + r.paid, 0);
   const box = $('#gridBox'); if (!box) return;
-  /* الإجمالي بيتحسب تلقائي في الخانة */
-  rows.forEach(r => {
-    if (r.qty && r.price) {
-      const el = $('#g' + r.i + 'a');
-      if (el && (!num(el.value) || Math.abs(num(el.value) - r.qty * r.price) < 0.005)) el.value = fmtMoney(Math.round(r.qty * r.price * 100) / 100);
-    }
-  });
   box.innerHTML =
     `<div class="ln"><span>بنود هتتسجل</span><b>${ti}</b><b class="num">${fmt2(si)}</b></div>
      <div class="ln"><span>سدادات هتتسجل</span><b>${tp}</b><b class="num">${fmt2(sp)}</b></div>
@@ -5727,6 +5731,35 @@ function tplFromPay(pid, aid) {
   if (!d.amount && !d.method) return toast('املّي الفورم الأول', 'err');
   saveAsTemplate('pay', pid, aid, d);
 }
+
+/* ================= تكميل الوحدة =================
+   أي خانة وحدة (مربوطة بقايمة وحدات): «مق» + Tab ← «مقطوعية». */
+const unitNorm = s => toEnDigits(String(s || '')).trim().replace(/\s+/g, '')
+  .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/²/g, '2').replace(/³/g, '3').toLowerCase();
+function unitCandidates() {
+  const cnt = {};
+  UNITS.forEach((u, k) => { cnt[u] = (cnt[u] || 0) + 0.001 * (UNITS.length - k); });   // ترتيب القايمة لو مفيش استخدام
+  (DB.parties || []).forEach(p => (p.accounts || []).forEach(a => (a.items || []).forEach(it => {
+    const u = String(it.unit || '').trim(); if (u) cnt[u] = (cnt[u] || 0) + 1;
+  })));
+  return Object.keys(cnt).sort((x, y) => cnt[y] - cnt[x]);
+}
+function completeUnit(v) {
+  const n = unitNorm(v); if (!n) return v;
+  const all = unitCandidates();
+  const exact = all.find(u => unitNorm(u) === n); if (exact) return exact;
+  const hit = all.find(u => unitNorm(u).startsWith(n));
+  return hit || v;
+}
+function isUnitInput(el) {
+  return el && el.tagName === 'INPUT' && el.list && /^(unitList|uwL)/.test(el.list.id || '');
+}
+function unitFix(el) {
+  const nv = completeUnit(el.value);
+  if (nv !== el.value) { el.value = nv; el.dispatchEvent(new Event('input', { bubbles: true })); }
+}
+document.addEventListener('keydown', e => { if ((e.key === 'Tab' || e.key === 'Enter') && isUnitInput(e.target)) unitFix(e.target); }, true);
+document.addEventListener('focusout', e => { if (isUnitInput(e.target)) unitFix(e.target); }, true);
 
 /* ================= إدخال ذكي ================= */
 function wireInputs(root) {
