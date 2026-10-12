@@ -5120,6 +5120,15 @@ function saveGrid(pid, aid) {
   if (!rows.length) return toast('مفيش سطور مكتوبة', 'err');
   const bad = rows.find(r => isLocked(r.date));
   if (bad) return toast('سطر تاريخه في فترة مقفولة (' + dsp(bad.date) + ')', 'err');
+  /* تكرار: سطر شبه بند متسجل قبل كده، أو نفس السطر مكتوب مرتين في الجدول */
+  const _dups = [];
+  rows.forEach((r, k) => {
+    if (!r.amount) return;
+    simItems(p, r.desc || 'بند', r.amount).forEach(x => _dups.push({ t: 'سطر ' + (r.i + 1) + ': ' + (r.desc || 'بند') + ' — ' + fmt2(r.amount), s: 'زي: ' + x.t + ' · ' + x.s }));
+    const twin = rows.find((o, j) => j < k && o.amount && Math.abs(o.amount - r.amount) <= 0.5 && simName(o.desc || 'بند', r.desc || 'بند'));
+    if (twin) _dups.push({ t: 'سطر ' + (r.i + 1) + ': ' + (r.desc || 'بند') + ' — ' + fmt2(r.amount), s: 'مكتوب مرتين — زي سطر ' + (twin.i + 1) });
+  });
+  if (dupAsk('grid|' + rows.map(r => r.desc + r.amount).join('|'), 'فيه سطور شكلها متسجلة قبل كده:', _dups, () => saveGrid(pid, aid))) return;
   snapshot();
   let ni = 0, np = 0;
   rows.forEach(r => {
@@ -5870,6 +5879,118 @@ function viewPhoto(pid, aid, kind, id) {
 }
 
 
+/* ================= تنبيه التكرار: «الحاجة دي موجودة قبل كده» ================= */
+const dupNorm = v => toEnDigits(String(v || '')).toLowerCase()
+  .replace(/[ً-ْٰـ]/g, '')            // تشكيل وتطويل
+  .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
+  .replace(/[\-_.,،/\\()\[\]«»"'`:;+]/g, ' ').replace(/\s+/g, ' ').trim();
+const dupTok = w => (w.length > 4 && w.startsWith('ال')) ? w.slice(2) : w;
+function dupLev(a, b, max) {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i]; let best = i;
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (cur[j] < best) best = cur[j];
+    }
+    if (best > max) return max + 1;
+    prev = cur;
+  }
+  return prev[b.length];
+}
+/* هل الاسمين شبه بعض؟ */
+function simName(x, y) {
+  const a = dupNorm(x), b = dupNorm(y);
+  if (!a || !b) return false;
+  if ((a.match(/\d+/g) || []).join('|') !== (b.match(/\d+/g) || []).join('|')) return false;   // أرقام مختلفة = حاجة تانية
+  if (a === b) return true;
+  const ca = a.replace(/ /g, ''), cb = b.replace(/ /g, '');
+  if (ca === cb) return true;
+  const ta = a.split(' ').map(dupTok), tb = b.split(' ').map(dupTok);
+  const [sh, lg] = ta.length <= tb.length ? [ta, tb] : [tb, ta];
+  if (sh.every(t => lg.indexOf(t) > -1) && (sh.length >= 2 || (sh[0].length >= 4 && lg[0] === sh[0]))) return true;
+  const L = Math.min(ca.length, cb.length);
+  const max = L >= 8 ? 2 : L >= 4 ? 1 : 0;
+  return max > 0 && dupLev(ca, cb, max) <= max;
+}
+const typeName = p => p.type === 'contractor' ? 'مقاول' : 'مورد';
+function simParties(name, exceptId) {
+  return DB.parties.filter(p => p.id !== exceptId && simName(p.name, name)).map(p => ({
+    t: p.name, s: typeName(p) + (p.trade ? ' — ' + p.trade : '') + ' · ' + p.accounts.length + ' حساب',
+    open: `go('party','${p.id}')`
+  }));
+}
+function simAccounts(p, name, exceptId) {
+  return p.accounts.filter(a => a.id !== exceptId && simName(a.name, name)).map(a => ({
+    t: a.name, s: 'عند ' + p.name + (a.project ? ' — مشروع ' + a.project : '') + ' · ' + a.items.length + ' بند و' + a.payments.length + ' سداد',
+    open: `go('party','${p.id}','${a.id}')`
+  }));
+}
+function simProjects(name) {
+  return projectNames().filter(n => n !== UNASSIGNED && simName(n, name)).map(n => ({ t: n, s: 'مشروع موجود', open: `go('projects')` }));
+}
+/* بند بنفس البيان تقريباً ونفس المبلغ عند نفس الطرف */
+function simItems(p, desc, amount, exceptId) {
+  const out = [];
+  if (!p || !amount) return out;
+  p.accounts.forEach(a => a.items.forEach(i => {
+    if (i.id === exceptId || Math.abs(num(i.amount) - amount) > 0.5) return;
+    if (!simName(i.desc, desc)) return;
+    out.push({ t: i.desc + ' — ' + fmt2(i.amount), s: (i.date ? dsp(i.date) : 'من غير تاريخ') + ' · ' + a.name, open: `go('party','${p.id}','${a.id}')` });
+  }));
+  return out;
+}
+/* إيراد / مصروف بنفس المبلغ وبيان شبهه في حدود 10 أيام */
+function simMoves(list, desc, amount, date, exceptId, where) {
+  return (list || []).filter(x => x.id !== exceptId && Math.abs(num(x.amount) - amount) <= 0.5 && simName(x.desc, desc)
+    && (!x.date || !date || Math.abs(daysBetween(x.date, date)) <= 10))
+    .map(x => ({ t: x.desc + ' — ' + fmt2(x.amount), s: (x.date ? dsp(x.date) : 'من غير تاريخ') + (x.project ? ' · ' + x.project : ''), open: `go('${where}')` }));
+}
+
+/* الرسالة نفسها: بتظهر فوق الفورم من غير ما تقفله — «لا» بترجّعك للفورم زي ما هو */
+const DUP = { ok: new Set(), proceed: null };
+function dupAsk(key, what, items, proceed) {
+  if (!items || !items.length) return false;
+  if (DUP.ok.has(key)) return false;
+  DUP.proceed = () => {
+    dupClose();
+    DUP.ok.add(key);
+    try { proceed(); } finally { DUP.ok.clear(); }
+  };
+  let root = $('#dupRoot');
+  if (!root) { root = document.createElement('div'); root.id = 'dupRoot'; document.body.appendChild(root); }
+  root.innerHTML = `<div class="ov" style="z-index:95;align-items:center" onclick="if(event.target===this)dupClose()">
+    <div class="modal" style="max-width:500px;border-top:4px solid var(--gold)">
+      <div class="modal-h"><span class="t">⚠ الحاجة دي موجودة قبل كده</span></div>
+      <div class="modal-b">
+        <div style="font-size:14px;line-height:1.8;margin-bottom:9px">${what}</div>
+        <div style="max-height:230px;overflow:auto;border:1px solid var(--line);border-radius:10px">
+          ${items.slice(0, 8).map(x => `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line)">
+            <div style="flex:1;min-width:0"><b>${esc(x.t)}</b><div style="font-size:12px;color:var(--mut)">${esc(x.s || '')}</div></div>
+            ${x.open ? `<button class="btn sm" onclick="dupClose();closeModal();${x.open}">افتحه</button>` : ''}</div>`).join('')}
+          ${items.length > 8 ? `<div style="padding:7px 12px;font-size:12px;color:var(--mut)">و${items.length - 8} كمان…</div>` : ''}
+        </div>
+        <div style="font-size:13.5px;margin-top:11px;font-weight:700">تحب تضيفه برضه؟</div>
+      </div>
+      <div class="modal-f">
+        <button class="btn gold" id="dupYes" onclick="DUP.proceed()">أيوه، ضيفه برضه</button>
+        <button class="btn" id="dupNo" onclick="dupClose()">لا، ارجع أعدّل</button>
+      </div></div></div>`;
+  setTimeout(() => { const b = $('#dupNo'); if (b) b.focus(); }, 30);
+  return true;
+}
+function dupClose() { const r = $('#dupRoot'); if (r) r.innerHTML = ''; }
+/* وهي مفتوحة: Esc = لا، Enter = الزرار اللي عليه التحديد — ومايوصلوش للفورم اللي ورا */
+window.addEventListener('keydown', e => {
+  const r = $('#dupRoot'); if (!r || !r.innerHTML) return;
+  if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); dupClose(); }
+  else if (e.key === 'Enter') {
+    e.preventDefault(); e.stopImmediatePropagation();
+    const f = document.activeElement; if (f && r.contains(f) && f.tagName === 'BUTTON') f.click(); else dupClose();
+  }
+}, true);
+
 /* ================= رسالة تأكيد داخلية ================= */
 /* رسائل ويندوز بتوقف البرنامج لحد ما ترد عليها — دي بديلة مش بتوقف حاجة */
 function askYesNo(title, msg, onYes, yesLabel, danger) {
@@ -5959,6 +6080,7 @@ function saveQuickItem(pid) {
   const amount = mval('qiAmount'); if (!amount) return toast('اكتب الإجمالي', 'err');
   const date = dval('qiDate');
   if (lockGuard(date)) return;
+  if (dupAsk('item|' + desc + '|' + amount, 'البند <b>' + esc(desc) + '</b> بنفس المبلغ متسجل قبل كده عند ' + esc(p.name) + ':', simItems(p, desc, amount), () => saveQuickItem(pid))) return;
 
   const matches = accountsForProject(p, proj);
   let aid;
@@ -6077,6 +6199,8 @@ function savePurchase() {
   if (!desc) return toast('اكتب المادة', 'err');
   if (!amount) return toast('اكتب الإجمالي', 'err');
   if (lockGuard(date)) return;
+  if (sid === '__new' && sval('puNewName') && dupAsk('party|' + sval('puNewName'), 'فيه اسم شبه <b>' + esc(sval('puNewName')) + '</b> متسجل — يمكن تختاره من القايمة بدل ما تعمله جديد:', simParties(sval('puNewName')), () => savePurchase())) return;
+  if (sid && sid !== '__new' && dupAsk('item|' + desc + '|' + amount, 'التوريد <b>' + esc(desc) + '</b> بنفس المبلغ متسجل قبل كده عند ' + esc(findParty(sid).name) + ':', simItems(findParty(sid), desc, amount), () => savePurchase())) return;
   snapshot();
   let p;
   if (sid === '__new') {
@@ -6341,6 +6465,8 @@ function saveWork() {
   if (!desc) return toast('اكتب البند', 'err');
   if (!amount) return toast('اكتب الإجمالي', 'err');
   if (lockGuard(date)) return;
+  if (cid === '__new' && sval('wkNewName') && dupAsk('party|' + sval('wkNewName'), 'فيه اسم شبه <b>' + esc(sval('wkNewName')) + '</b> متسجل — يمكن تختاره من القايمة بدل ما تعمله جديد:', simParties(sval('wkNewName')), () => saveWork())) return;
+  if (cid && cid !== '__new' && dupAsk('item|' + desc + '|' + amount, 'البند <b>' + esc(desc) + '</b> بنفس المبلغ متسجل قبل كده عند ' + esc(findParty(cid).name) + ':', simItems(findParty(cid), desc, amount), () => saveWork())) return;
   snapshot();
   let p;
   if (cid === '__new') {
@@ -6401,6 +6527,8 @@ function openParty(pid, type) {
 }
 function saveParty(pid) {
   const name = sval('fName'); if (!name) return toast('اكتب الاسم الأول', 'err');
+  const _old = pid ? findParty(pid) : null;
+  if ((!_old || _old.name !== name) && dupAsk('party|' + name, 'فيه اسم شبه <b>' + esc(name) + '</b> متسجل:', simParties(name, pid), () => saveParty(pid))) return;
   snapshot();
   if (pid) { Object.assign(findParty(pid), { name, type: sval('fType'), trade: sval('fTrade'), phone: sval('fPhone'), note: sval('fNote') }); logAction('party', 'تعديل بيانات ' + name); }
   else {
@@ -6486,7 +6614,12 @@ function fillFloors(n){
 const parseFloors = v => String(v || '').split(/[،,\n]/).map(x => x.trim()).filter(Boolean);
 function saveAcc(pid, aid) {
   const name = sval('aName'); if (!name) return toast('اكتب اسم الحساب', 'err');
-  const p = findParty(pid); snapshot();
+  const p = findParty(pid);
+  const _oa = aid ? findAcc(p, aid) : null;
+  if ((!_oa || _oa.name !== name) && dupAsk('acc|' + pid + '|' + name, 'فيه حساب اسمه شبه <b>' + esc(name) + '</b> عند ' + esc(p.name) + ':', simAccounts(p, name, aid), () => saveAcc(pid, aid))) return;
+  const _pv = sval('aProj');
+  if (_pv && canonProject(_pv) === UNASSIGNED && (!_oa || _oa.project !== _pv) && dupAsk('proj|' + _pv, 'المشروع <b>' + esc(_pv) + '</b> مش موجود، بس فيه مشروع اسمه شبهه — يمكن تقصده:', simProjects(_pv), () => saveAcc(pid, aid))) return;
+  snapshot();
   const data = {
     name, project: (function () { const v = sval('aProj'); if (!v) return ''; const c = canonProject(v); return c === UNASSIGNED ? v : c; })(),
     mode: sval('aMode'), agreed: mval('aAgreed'), adjust: mval('aAdjust'),
@@ -6659,6 +6792,7 @@ function saveItem(pid, aid, iid) {
   if (!amount) return toast('اكتب الإجمالي', 'err');
   if (lockGuard(dval('iDate'))) return;
   if (iid && lockGuard(a.items.find(x => x.id === iid).date)) return;
+  if (!iid && dupAsk('item|' + desc + '|' + amount, 'البند <b>' + esc(desc) + '</b> بنفس المبلغ متسجل قبل كده عند ' + esc(p.name) + ':', simItems(p, desc, amount), () => saveItem(pid, aid, iid))) return;
   snapshot();
   const projIn = sval('iProj');
   const projCan = projIn ? canonProject(projIn) : '';
@@ -9558,6 +9692,7 @@ function saveProject(oldName) {
   /* لو الاسم الجديد بيطابق مشروع تاني موجود بالفعل، ده دمج مقصود ومسموح.
      الممنوع بس إنشاء مشروع جديد بنفس اسم موجود. */
   if (!oldName && projectNames().indexOf(nmCanon) > -1) return toast('فيه مشروع بنفس الاسم', 'err');
+  if (!oldName && dupAsk('proj|' + nm, 'فيه مشروع اسمه شبه <b>' + esc(nm) + '</b>:', simProjects(nm), () => saveProject(oldName))) return;
   snapshot();
   DB.settings.projects = DB.settings.projects || [];
   if (oldName) {
@@ -10163,6 +10298,7 @@ function saveIncome(id) {
   if (!desc) return toast('اكتب البيان', 'err');
   if (!amount) return toast('اكتب المبلغ', 'err');
   if (lockGuard(dval('nDate'))) return;
+  if (!id && dupAsk('inc|' + desc + '|' + amount, 'فيه إيراد بنفس المبلغ وبيان شبهه في نفس الأيام:', simMoves(DB.income, desc, amount, dval('nDate'), id, 'income'), () => saveIncome(id))) return;
   snapshot();
   DB.income = DB.income || [];
   const projIn = sval('nProj');
@@ -10474,6 +10610,7 @@ function saveExpense(id) {
   const desc = sval('eDesc'), amount = mval('eAmount');
   if (!desc) return toast('اكتب البند', 'err');
   if (!amount) return toast('اكتب المبلغ', 'err');
+  if (!id && dupAsk('exp|' + desc + '|' + amount, 'فيه مصروف بنفس المبلغ وبيان شبهه في نفس الأيام:', simMoves(DB.expenses, desc, amount, dval('eDate'), id, 'expenses'), () => saveExpense(id))) return;
   snapshot();
   DB.expenses = DB.expenses || [];
   const data = normalizeExpense({
@@ -10519,6 +10656,10 @@ function openWorker(id) {
 }
 function saveWorker(id) {
   const name = sval('wName'); if (!name) return toast('اكتب الاسم', 'err');
+  const _ow = id ? (DB.labor || []).find(x => x.id === id) : null;
+  if ((!_ow || _ow.name !== name) && dupAsk('worker|' + name, 'فيه عامل اسمه شبه <b>' + esc(name) + '</b>:',
+    (DB.labor || []).filter(w => w.id !== id && simName(w.name, name)).map(w => ({ t: w.name, s: (w.role || 'عامل') + ' · يومية ' + fmt(w.rate) + (w.project ? ' · ' + w.project : ''), open: `go('labor')` })),
+    () => saveWorker(id))) return;
   snapshot();
   DB.labor = DB.labor || [];
   const data = { name, role: sval('wRole'), rate: mval('wRate'), project: sval('wProj'), phone: sval('wPhone'), note: sval('wNote') };
@@ -10627,6 +10768,9 @@ function openCustody(id) {
 }
 function saveCustody(id) {
   const holder = sval('cHolder'); if (!holder) return toast('اكتب اسم صاحب العهدة', 'err');
+  if (!id && dupAsk('custody|' + holder, 'فيه عهدة <b>مفتوحة</b> لحد اسمه شبه <b>' + esc(holder) + '</b> — يمكن تزوّد عليها بدل ما تفتح واحدة جديدة:',
+    (DB.custody || []).filter(c => !c.closed && simName(c.holder, holder)).map(c => ({ t: c.holder, s: (c.project || '') + (c.note ? ' · ' + c.note : ''), open: `go('custody')` })),
+    () => saveCustody(id))) return;
   snapshot();
   DB.custody = DB.custody || [];
   if (id) {
