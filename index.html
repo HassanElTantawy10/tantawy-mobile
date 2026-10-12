@@ -280,6 +280,29 @@ tbody tr.adjrow,tbody tr.adjrow:nth-child(even){background:#EFF6FF;font-style:it
 .sign-row{display:grid;grid-template-columns:1fr 1fr;gap:34px;margin-top:46px;break-inside:avoid}
 .sign-line{border-top:1px solid #94A3B8;padding-top:8px;color:#64748B;font-size:13px;text-align:center}
 .doc-footer{text-align:center;font-size:10.5px;color:#94A3B8;margin-top:26px}
+/* ===== مقاسات الطباعة — جداول البيانات في كل التقارير (#printArea table.pt) =====
+   pt = جدول بيانات (ليه عناوين أعمدة). السندات والمستخلصات (جداول من غير عناوين) فاضلة بمقاسها. */
+#printArea table.pt{width:100%;max-width:100%;border-collapse:collapse;font-size:10.5px}
+#printArea table.pt thead th{position:static;padding:5px 6px;font-size:10px;line-height:1.35;white-space:normal;vertical-align:bottom}
+#printArea table.pt tbody td{padding:4px 6px;font-size:10.5px;line-height:1.45;vertical-align:top}
+#printArea table.pt tfoot td{padding:5px 6px;font-size:11px}
+#printArea table.pt td,#printArea table.pt th{overflow-wrap:break-word}
+#printArea .num,#printArea td.dt{white-space:nowrap}
+#printArea table.pt .chip{font-size:9.5px;padding:1px 7px}
+#printArea table.pt tbody tr.payrow .paid-cell{font-size:11px}
+/* التوقيعات والسطر الأخير مايتفصلوش لوحدهم في صفحة فاضية */
+#printArea .sign-row,#printArea .keepnext{break-after:avoid}
+#printArea .doc-footer{break-before:avoid}
+/* لو الجدول لسه أعرض من الورقة — البرنامج بيزوّد الدرجة لوحده (fitPrint) */
+#printArea table.pf1 thead th{font-size:9.5px;padding:4px 4px}
+#printArea table.pf1 tbody td,#printArea table.pf1 tfoot td{font-size:9.5px;padding:3px 4px}
+#printArea table.pf2 thead th{font-size:8.5px;padding:3px 3px}
+#printArea table.pf2 tbody td,#printArea table.pf2 tfoot td{font-size:8.5px;padding:3px 3px}
+#printArea table.pf2 .chip{font-size:8px;padding:0 5px}
+#printArea table.pf3 thead th{font-size:7.5px;padding:2px 2px}
+#printArea table.pf3 tbody td,#printArea table.pf3 tfoot td{font-size:7.5px;padding:2px 2px}
+#printArea table.pf3 .chip{font-size:7px;padding:0 4px}
+#printArea table.pf4 .num,#printArea table.pf4 td.dt{white-space:normal}
 #printArea{display:none}
 /* وضع الطباعة: بنخفي البرنامج ونظهر الورقة بنفسنا — مش مستنيين المتصفح يفعّل ستايل الطباعة.
    ده اللي بيخلي حفظ PDF في نسخة الويندوز يطلع التقرير مش شاشة البرنامج. */
@@ -7581,10 +7604,32 @@ function xlDoImport(){
 /* ================= الطباعة ================= */
 const APP_TITLE = document.title;
 const safeFileName = s => String(s).replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim();
+/* قبل أي طباعة: نقيس كل جدول على عرض ورقة A4 (210 مم − هوامش) ونصغّر خطه لحد ما يدخل.
+   180 مم أقل شوية من مساحة الكتابة في الورقة (184 مم) — عشان يفضل فيه هامش أمان. */
+function fitPrint() {
+  const A = $('#printArea'); if (!A) return;
+  A.querySelectorAll('table').forEach(t => { if (t.querySelector('thead')) t.classList.add('pt'); });
+  A.querySelectorAll('.sign-row').forEach(r => { const pv = r.previousElementSibling; if (pv && !pv.matches('table,div:has(> table)')) pv.classList.add('keepnext'); });
+  A.querySelectorAll('td').forEach(td => { if (/^\s*\d{1,2}-\d{1,2}-\d{4}\s*$/.test(td.textContent)) td.classList.add('dt'); });
+  const oldW = A.style.width;
+  A.style.width = '180mm';
+  try {
+    const W = A.clientWidth;
+    A.querySelectorAll('table').forEach(t => {
+      t.classList.remove('pf1', 'pf2', 'pf3', 'pf4');
+      for (let lv = 1; lv <= 4 && t.offsetWidth > W + 1; lv++) {
+        t.classList.remove('pf' + (lv - 1)); t.classList.add('pf' + lv);
+        if (lv === 4) t.classList.add('pf3');
+      }
+    });
+  } catch (e) { logErr('fitPrint', e.message); }
+  A.style.width = oldW;
+}
 function printAs(name) {
   if (!$('#printArea').innerHTML.trim()) { toast('مفيش حاجة للطباعة', 'err'); return; }
   document.title = safeFileName(name);
   document.body.classList.add('printing');
+  fitPrint();
   flushSave();
   /* نسخة الويندوز: بنعمل ملف PDF على طول ونفتحه — ده أضمن من إن الطباعة
      تعتمد على طابعة متظبطة على الجهاز. وزرار الطابعة موجود جوه النافذة. */
@@ -7618,6 +7663,7 @@ function askPrintFallback(name, reason) {
 }
 function printToPrinter(name) {
   document.body.classList.add('printing');
+  fitPrint();
   if (window.tantawyFS && window.tantawyFS.print) {
     window.tantawyFS.print(name)
       .then(r => { unstick(); if (r && !r.ok && r.reason && r.reason !== 'cancelled') { logErr('print', r.reason); toast('الطباعة مكملتش — ' + r.reason, 'err'); } })
