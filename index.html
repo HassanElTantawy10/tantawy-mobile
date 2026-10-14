@@ -501,19 +501,26 @@ const IDB = {
 /* دمج السدادات اللي على الموبايل فوق نسخة اللاب — من غير ما نلمس أي حاجة تانية.
    لو السداد موجود في نسخة اللاب بنفس الرقم، النسخة اللي على الموبايل هي اللي بتتعرض
    (لأنها ممكن تكون اتعدلت بعد ما اتبعتت). */
+/* الحركة نوعين: سداد (kind 'pay' — e.pay) أو بند (kind 'item' — e.item) */
 function mobCompose(baseStr, outbox) {
   const d = JSON.parse(baseStr);
   const parties = d.parties || [];
   (outbox || []).forEach(e => {
     e.orphan = false;
+    const isItem = e.kind === 'item', key = isItem ? 'items' : 'payments';
+    let at = null;                                    // البند بيفضل في مكانه في الدفتر لو اتعدل
     parties.forEach(p => (p.accounts || []).forEach(a => {
-      a.payments = (a.payments || []).filter(y => y.id !== e.id);
+      const arr = a[key] || [];
+      const i = arr.findIndex(y => y.id === e.id);
+      if (i > -1) { if (a.id === e.aid) at = i; arr.splice(i, 1); }
+      a[key] = arr;
     }));
     if (e.del) return;
     const p = parties.find(x => x.id === e.pid);
     const a = p && (p.accounts || []).find(x => x.id === e.aid);
     if (!a) { e.orphan = true; return; }
-    a.payments.push(JSON.parse(JSON.stringify(e.pay)));
+    const row = JSON.parse(JSON.stringify(isItem ? e.item : e.pay));
+    if (isItem && at !== null) a.items.splice(at, 0, row); else a[key].push(row);
   });
   return JSON.stringify(d);
 }
@@ -11037,7 +11044,7 @@ function printRates() {
 /* ================= نسخة الموبايل — بعد كود البرنامج الأصلي =================
    كود الحسابات نفسه (الأرصدة والتكلفة والتوزيع) هو نفس كود اللاب بالحرف — مفيش ولا معادلة اتكتبت هنا.
    الملف ده بيعمل:
-   ١. حارس: على الموبايل مسموح تضيف/تعدّل/تمسح سداد إنت ضايفه من الموبايل بس. أي تعديل تاني بيترجع.
+   ١. حارس: على الموبايل مسموح تضيف/تعدّل/تمسح سداد أو بند. أي تعديل تاني (حسابات، أطراف، مصروفات…) بيترجع.
    ٢. المزامنة مع اللاب عن طريق سكربت جوجل (Apps Script) اللي في حسابك.
    ٣. شكل الموبايل: شريط فوق، تبويب تحت، الجداول كروت. */
 
@@ -11056,7 +11063,7 @@ autoBackup = async function () { };       // النسخة الأصلية على 
 extBackupNow = async function () { return false; };
 mobileExport = async function () { return false; };
 
-const MOB_VER = '2026-10-11c';
+const MOB_VER = '2026-10-14a';
 const MOB = {
   loaded: false, base: null, baseAt: '', outbox: [], cfg: null,
   refState: null, refPayIds: null, good: null,
@@ -11080,11 +11087,25 @@ function mobAllPays(st) {
   (st.parties || []).forEach(p => (p.accounts || []).forEach(a => (a.payments || []).forEach(y => out.push({ p, a, y }))));
   return out;
 }
-/* الجزء اللي ممنوع يتغير على الموبايل = كل البيانات ما عدا السدادات
-   (السدادات كلها — الجديدة والقديمة — تتضاف وتتعدل وتتمسح من الموبايل، واللاب بيطبّق) */
+/* كل الحركات اللي مسموح تتعمل على الموبايل: السدادات والبنود */
+function mobAllRows(st) {
+  const out = [];
+  (st.parties || []).forEach(p => (p.accounts || []).forEach(a => {
+    (a.payments || []).forEach(y => out.push({ p, a, y, kind: 'pay' }));
+    (a.items || []).forEach(y => out.push({ p, a, y, kind: 'item' }));
+  }));
+  return out;
+}
+const mobRowOf = e => e.kind === 'item' ? e.item : e.pay;
+/* رقم النسخة لازم يكبر دايماً حتى لو الحركة اتشالت من الطابور ورجعت تاني (تعديل/مسح حركة اتعملت من الموبايل قبل كده) —
+   اللاب بيتجاهل أي نسخة رقمها مش أكبر من اللي طبّقه. فبنستخدم الوقت. */
+const mobNextRev = r => Math.max((r || 0) + 1, Date.now());
+/* الجزء اللي ممنوع يتغير على الموبايل = كل البيانات ما عدا السدادات والبنود
+   (الجديدة والقديمة — تتضاف وتتعدل وتتمسح من الموبايل، واللاب بيطبّق).
+   «آخر وحدة» بتاعة الطرف بتتغير لوحدها مع البند — مش محسوبة. */
 function mobDataPart(st) {
-  const parties = (st.parties || []).map(p => Object.assign({}, p, {
-    accounts: (p.accounts || []).map(a => Object.assign({}, a, { payments: [] }))
+  const parties = (st.parties || []).map(p => Object.assign({}, p, { lastUnit: '',
+    accounts: (p.accounts || []).map(a => Object.assign({}, a, { payments: [], items: [] }))
   }));
   return JSON.stringify([parties, st.expenses || [], st.labor || [], st.custody || [], st.templates || [], st.income || []]);
 }
@@ -11095,50 +11116,60 @@ function mobCaptureRef() {
   MOB.refData = mobDataPart(st);
   /* نسخة اللاب من كل سداد (اللي مالوش تعديل على الموبايل) — عشان نعرف اتغير ولا لأ */
   MOB.refBase = new Map();
-  mobAllPays(st).forEach(({ p, a, y }) => {
-    if (!ob.has(y.id)) MOB.refBase.set(y.id, { pid: p.id, aid: a.id, pname: p.name, aname: a.name, pay: y, json: JSON.stringify(y) });
+  mobAllRows(st).forEach(({ p, a, y, kind }) => {
+    if (!ob.has(y.id)) MOB.refBase.set(y.id, { kind, pid: p.id, aid: a.id, pname: p.name, aname: a.name, row: y, json: JSON.stringify(y) });
   });
   MOB.good = JSON.stringify(st);
 }
 function mobRevert(msg) {
   try { applyState(JSON.parse(MOB.good)); } catch (e) { logErr('mobRevert', e.message); }
   closeModal(); render();
-  toast(msg || 'التعديل ده بيتعمل من اللاب بس — على الموبايل تقدر تضيف أو تعدّل أو تمسح سداد', 'err');
+  toast(msg || 'التعديل ده بيتعمل من اللاب بس — على الموبايل تقدر تضيف أو تعدّل أو تمسح سداد أو بند', 'err');
 }
 save = function () {
   dirty = false;
   if (!MOB.base || !MOB.refState) return;
   let cur;
   try { cur = JSON.parse(JSON.stringify(fullState())); } catch (e) { logErr('mobSave', e.message); return; }
-  if (mobDataPart(cur) !== MOB.refData) return mobRevert();
+  /* البند الأول في حساب مالوش مشروع بيربط الحساب بمشروعه (زي اللاب بالظبط — واللاب بيعمل نفس الحاجة لما يطبّقه) */
+  const _cmp = JSON.parse(JSON.stringify(cur));
+  (_cmp.parties || []).forEach(p => (p.accounts || []).forEach(a => {
+    const rp = (MOB.refState.parties || []).find(x => x.id === p.id), ra = rp && (rp.accounts || []).find(x => x.id === a.id);
+    if (ra && !(ra.project || '').trim()) a.project = ra.project;
+  }));
+  if (mobDataPart(_cmp) !== MOB.refData) return mobRevert();
 
   const now = new Date().toISOString();
   const seen = new Set();
-  mobAllPays(cur).forEach(({ p, a, y }) => {
+  mobAllRows(cur).forEach(({ p, a, y, kind }) => {
     seen.add(y.id);
-    const pay = JSON.parse(JSON.stringify(y)), json = JSON.stringify(pay);
+    const row = JSON.parse(JSON.stringify(y)), json = JSON.stringify(row);
     let e = MOB.outbox.find(z => z.id === y.id);
     if (!e) {
       const b = MOB.refBase.get(y.id);
-      if (b && b.json === json && b.aid === a.id) return;          // سداد من اللاب ماتغيرش
-      e = { id: y.id, rev: 0, sentRev: -1, base: !!b, created: now };
+      if (b && b.json === json && b.aid === a.id) return;          // حركة من اللاب ماتغيرتش
+      e = { id: y.id, kind, rev: 0, sentRev: -1, base: !!b, created: now };
       MOB.outbox.push(e);
     }
-    if (e.del || e.pid !== p.id || e.aid !== a.id || JSON.stringify(e.pay) !== json) {
-      Object.assign(e, { pid: p.id, aid: a.id, pname: p.name, aname: a.name, pay, del: false, rev: e.rev + 1, at: now });
+    if (e.del || e.pid !== p.id || e.aid !== a.id || JSON.stringify(mobRowOf(e)) !== json) {
+      Object.assign(e, { kind, pid: p.id, aid: a.id, pname: p.name, aname: a.name, del: false, rev: mobNextRev(e.rev), at: now });
+      if (kind === 'item') { e.item = row; delete e.pay; } else { e.pay = row; delete e.item; }
+      if (kind === 'item') e.aproj = a.project || '';
     }
   });
   /* اللي اتمسح */
   MOB.outbox = MOB.outbox.filter(e => {
     if (seen.has(e.id) || e.del) return true;
     if (!e.base && e.sentRev < 0) return false;            // جديد واتمسح قبل ما يتبعت — يتشال وخلاص
-    Object.assign(e, { del: true, rev: e.rev + 1, at: now });
+    Object.assign(e, { del: true, rev: mobNextRev(e.rev), at: now });
     return true;
   });
   MOB.refBase.forEach((b, id) => {
     if (seen.has(id) || MOB.outbox.some(e => e.id === id)) return;
-    MOB.outbox.push({ id, rev: 1, sentRev: -1, base: true, del: true, created: now, at: now,
-      pid: b.pid, aid: b.aid, pname: b.pname, aname: b.aname, pay: b.pay });
+    const e = { id, kind: b.kind, rev: mobNextRev(0), sentRev: -1, base: true, del: true, created: now, at: now,
+      pid: b.pid, aid: b.aid, pname: b.pname, aname: b.aname };
+    if (b.kind === 'item') e.item = b.row; else e.pay = b.row;
+    MOB.outbox.push(e);
   });
   MOB.good = JSON.stringify(cur);
   IDB.set('outbox', MOB.outbox).catch(e => toast('مقدرتش أحفظ على التليفون: ' + e.message, 'err'));
@@ -11146,6 +11177,33 @@ save = function () {
   setTimeout(mobSync, 300);
 };
 manualSave = function () { mobSync(true); };
+
+/* «تسجيل بند أعمال» و«تسجيل مشترى» و«بند سريع» شغالين على الموبايل — بس على مقاول/مورد وحساب موجودين.
+   المقاول/المورد الجديد أو الحساب الجديد بيتعمل من اللاب، فبنقول كده قبل الحفظ والفورم يفضل مفتوح زي ما هو. */
+const MOB_NEW_PARTY = 'المقاول أو المورد الجديد بيتضاف من اللاب — اختار واحد موجود';
+const MOB_NEW_ACC = 'مفيش حساب للطرف ده في المشروع ده — الحساب الجديد بيتعمل من اللاب. اختار مشروع ليه حساب، أو ضيف البند من جوه الحساب';
+const _mobSaveWork = saveWork;
+saveWork = function () {
+  const cid = sval('wkCon');
+  if (cid === '__new') return toast(MOB_NEW_PARTY, 'err');
+  const p = cid && findParty(cid);
+  if (p) { const aid = sval('wkAcc'); if (!aid || aid === '__new' || !findAcc(p, aid)) return toast(MOB_NEW_ACC, 'err'); }
+  return _mobSaveWork.apply(this, arguments);
+};
+const _mobSavePurchase = savePurchase;
+savePurchase = function () {
+  const sid = sval('puSup');
+  if (sid === '__new') return toast(MOB_NEW_PARTY, 'err');
+  const p = sid && findParty(sid), proj = sval('puProj') ? canonProject(sval('puProj')) : '';
+  if (p && proj && !accountsForProject(p, proj).length) return toast(MOB_NEW_ACC, 'err');
+  return _mobSavePurchase.apply(this, arguments);
+};
+const _mobSaveQuickItem = saveQuickItem;
+saveQuickItem = function (pid) {
+  const p = findParty(pid), raw = sval('qiProj');
+  if (p && raw && !accountsForProject(p, canonProject(raw)).length) return toast(MOB_NEW_ACC, 'err');
+  return _mobSaveQuickItem.apply(this, arguments);
+};
 
 /* ---------- المزامنة ---------- */
 /* جوجل ساعات بيرد بصفحة خطأ مؤقتة بدل الرد — نجرّب تاني مرة كمان بعد ثانيتين */
@@ -11174,6 +11232,8 @@ async function mobCall1(op, body, cfg) {
 }
 /* اللي لسه ما اتبعتش من التليفون (مفيش نت مثلاً) — اللي اتبعت خلاص بيتطبّق على اللاب لوحده */
 function mobPendingCount() { return MOB.outbox.filter(e => e.sentRev < e.rev).length; }
+/* البرنامج على اللاب بيعرف يدخّل بنود من الموبايل؟ (بيقول كده في النسخة اللي بيبعتها) */
+function mobLapItems() { return !!(MOB.base && MOB.base.indexOf('"mobCaps":["item"') > -1); }
 
 /* نسخة جديدة من اللاب: نشيل من الطابور اللي اللاب دخّله، ونرسم من جديد */
 /* نشيل من الطابور اللي اللاب طبّقه فعلاً.
@@ -11183,7 +11243,7 @@ function mobPrune(data, at) {
   const d = JSON.parse(data);
   const applied = d.mobApplied;
   const inBase = new Map();
-  mobAllPays(d).forEach(({ a, y }) => inBase.set(y.id, { aid: a.id, y }));
+  mobAllRows(d).forEach(({ a, y }) => inBase.set(y.id, { aid: a.id, y }));
   const n = MOB.outbox.length;
   MOB.outbox = MOB.outbox.filter(e => {
     if (e.sentRev !== e.rev) return true;                  // لسه فيه تعديل مابعتناهوش
@@ -11212,10 +11272,10 @@ async function mobSync(manual) {
   if (!navigator.onLine) { MOB.online = false; mobPaint(); if (manual) toast('مفيش نت — هيتبعت أول ما النت يرجع', 'err'); return; }
   MOB.busy = true; MOB.busySince = Date.now(); mobPaint();
   try {
-    /* ١. نبعت السدادات */
-    const send = MOB.outbox.filter(e => e.sentRev < e.rev);
+    /* ١. نبعت الحركات. البنود بتستنى لحد ما البرنامج على اللاب يبقى بالنسخة اللي بتعرف تدخّلها */
+    const send = MOB.outbox.filter(e => e.sentRev < e.rev && (e.kind !== 'item' || mobLapItems()));
     if (send.length) {
-      await mobCall('pay_put', { items: send.map(e => ({ id: e.id, rev: e.rev, pid: e.pid, aid: e.aid, pname: e.pname, aname: e.aname, pay: e.pay, del: !!e.del, at: e.at })) });
+      await mobCall('pay_put', { items: send.map(e => ({ id: e.id, kind: e.kind || 'pay', rev: e.rev, pid: e.pid, aid: e.aid, pname: e.pname, aname: e.aname, aproj: e.aproj, pay: e.pay, item: e.item, del: !!e.del, at: e.at })) });
       send.forEach(e => { e.sentRev = e.rev; e.sentAt = new Date().toISOString(); });
       mobPrune(MOB.base, MOB.baseAt);                                   // مسح اتبعت لسداد اللاب ماشافهوش أصلاً
       await IDB.set('outbox', MOB.outbox);
@@ -11244,7 +11304,7 @@ function mobDiag() {
     at: new Date().toISOString(), ver: MOB_VER, baseAt: MOB.baseAt, lastPull: MOB.lastPull, lastErr: MOB.lastErr,
     online: navigator.onLine, standalone: !!(navigator.standalone || matchMedia('(display-mode: standalone)').matches),
     errs: (typeof errLog !== 'undefined' ? errLog : []).slice(0, 6).map(e => e.at.slice(11, 19) + ' ' + e.where + ': ' + String(e.msg).slice(0, 160)),
-    outbox: MOB.outbox.slice(0, 25).map(e => ({ id: e.id, rev: e.rev, sent: e.sentRev, del: !!e.del, base: !!e.base, orphan: !!e.orphan, a: e.aname, amt: e.pay && e.pay.amount }))
+    outbox: MOB.outbox.slice(0, 25).map(e => ({ id: e.id, k: e.kind || 'pay', rev: e.rev, sent: e.sentRev, del: !!e.del, base: !!e.base, orphan: !!e.orphan, a: e.aname, amt: (mobRowOf(e) || {}).amount }))
   };
   mobCall('diag', { who: 'phone', d }).catch(() => { });
 }
@@ -11305,12 +11365,13 @@ function viewSync() {
     const st = e.orphan ? '<span class="chip red">الحساب مش موجود على اللاب</span>'
       : e.sentRev < e.rev ? '<span class="chip amber">لسه على الموبايل</span>'
       : '<span class="chip blue">اتبعت ✓</span>';
-    return `<tr><td>${esc(e.pname || '')}</td><td>${esc(e.aname || '')}</td>
-      <td class="num">${e.del ? '<s>' + fmt2(e.pay && e.pay.amount) + '</s> (مسح)' : fmt2(e.pay && e.pay.amount) + (e.base ? ' (تعديل)' : '')}</td>
-      <td>${e.pay && e.pay.date ? dsp(e.pay.date) : '—'}</td><td>${st}</td></tr>`;
+    const r = mobRowOf(e) || {}, what = e.kind === 'item' ? 'بند: ' + (r.desc || '') : 'سداد';
+    return `<tr><td>${esc(e.pname || '')}</td><td>${esc(e.aname || '')}</td><td>${esc(what)}</td>
+      <td class="num">${e.del ? '<s>' + fmt2(r.amount) + '</s> (مسح)' : fmt2(r.amount) + (e.base ? ' (تعديل)' : '')}</td>
+      <td>${r.date ? dsp(r.date) : '—'}</td><td>${st}</td></tr>`;
   }).join('');
   return `<div class="topbar"><div><h1 class="page">المزامنة مع اللاب</h1>
-    <p class="sub">السداد بيتسجل هنا على طول، واللاب بيدخّله أول ما يتفتح</p></div></div>
+    <p class="sub">السداد والبند بيتسجلوا هنا على طول، واللاب بيدخّلهم أول ما يتفتح</p></div></div>
   <div class="card pad msync">
     <div class="row"><span>آخر نسخة من اللاب</span><b>${tm(MOB.baseAt)}</b></div>
     <div class="row"><span>آخر مزامنة</span><b>${tm(MOB.lastPull)}</b></div>
@@ -11322,8 +11383,8 @@ function viewSync() {
       <button class="btn" onclick="mobResetToLaptop()">اعرض نسخة اللاب زي ما هي</button></div>
   </div>
   <div class="card" style="margin-top:12px"><div class="card-h"><div class="card-t">حركات من الموبايل في الطريق للاب (${MOB.outbox.length})</div></div>
-    <div class="tbl-wrap"><table><thead><tr><th>الطرف</th><th>الحساب</th><th>المبلغ</th><th>التاريخ</th><th>الحالة</th></tr></thead>
-    <tbody>${rows || '<tr><td colspan="5" class="empty">مفيش — كله وصل اللاب ✓</td></tr>'}</tbody></table></div></div>`;
+    <div class="tbl-wrap"><table><thead><tr><th>الطرف</th><th>الحساب</th><th>الحركة</th><th>المبلغ</th><th>التاريخ</th><th>الحالة</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="6" class="empty">مفيش — كله وصل اللاب ✓</td></tr>'}</tbody></table></div></div>`;
 }
 /* لو حصل أي لخبطة: نرجع لنسخة اللاب بالظبط. اللي لسه ما اتبعتش بس هو اللي بيضيع (وبنقول عليه قبلها) */
 async function mobResetToLaptop() {
@@ -11339,21 +11400,22 @@ VIEWS.sync = () => viewSync();
 VIEWS.setup = () => viewSetup();
 
 /* ---------- الشكل ---------- */
-/* الأزرار دي بتعدّل حاجات غير السداد — بتستخبى على الموبايل (والحارس بيمسك أي حاجة عدّت) */
+/* الأزرار دي بتعدّل حاجات غير السداد والبند — بتستخبى على الموبايل (والحارس بيمسك أي حاجة عدّت).
+   المسموح: openPay/savePay، openItem/saveItem، الإدخال الجماعي (openGrid/gridAddRows/saveGrid)، والمسح (delRow). */
 const MOB_DENY = new Set(('addMissing aiApplyAll asgApplyAll asgApplySug asgBulkSet asgSaveAll bulkDate bulkDelete bulkFloor bulkMethod bulkMove ' +
   'bulkPartyDelete bulkPartyTrade bulkPartyType clearBudget clearExtFolder clearProgress closingToPayment delAcc delCustody delExpense ' +
-  'delIncome delParty delProject delRow delTemplate delWorker delWorkerRow doAsgApplySug doBulkDate doBulkMethod doBulkMove doDelProject ' +
+  'delIncome delParty delProject delTemplate delWorker delWorkerRow doAsgApplySug doBulkDate doBulkMethod doBulkMove doDelProject ' +
   'doFixRate doFreshStart doImport doMergeFloors doMigMethods doSaveTemplate dupRow dupSelected emptyTrash exitDiscard exitSave extBackupNow ' +
-  'fillFloors fmApplyAll freshBackup gridAddRows impFile impParse impPreview impTab importJSON manageTpl manualSave mobileExport ' +
+  'fillFloors fmApplyAll freshBackup impFile impParse impPreview impTab importJSON manageTpl manualSave mobileExport ' +
   'mobileSavePreview mobilePreview openAcc openAccOpening openAssign openAssignItems openBackupBrowser openBudget openCarry openClosing ' +
-  'openCustody openCustodyFund openCustodyReturn openDays openExpense openExtract openFixMethods openFixRate openFreshStart openGrid ' +
-  'openImport openIncome openItem openLock openLockAll openLockPeriod openMergeFloors openMigMethods openOpening openParty ' +
-  'openPartyClosing openPassSetup openProgress openProject openPurchase openSched openSplitRate openTemplates openTransfer ' +
-  'openUnitWizard openWork openWorker openWorkerPay pickExtFolder previewBackup releaseRetention removePass resetSeed restoreBackup ' +
+  'openCustody openCustodyFund openCustodyReturn openDays openExpense openExtract openFixMethods openFixRate openFreshStart ' +
+  'openImport openIncome openLock openLockAll openLockPeriod openMergeFloors openMigMethods openOpening openParty ' +
+  'openPartyClosing openPassSetup openProgress openProject openSched openSplitRate openTemplates openTransfer ' +
+  'openUnitWizard openWorker openWorkerPay pickExtFolder previewBackup releaseRetention removePass resetSeed restoreBackup ' +
   'restoreTrash saveAcc saveAccOpening saveAsTpl saveAssign saveAssignItems saveBudget saveBulkFloor saveBulkTrade saveCarry ' +
-  'saveClosing saveCustody saveCustodyFund saveCustodyReturn saveDays saveExpense saveExtract saveFixMethods saveGrid saveIncome ' +
-  'saveItem saveLock saveOpening saveParty savePartyClosing savePass saveProgress saveProject savePurchase saveQuickItem saveSched ' +
-  'saveSplit saveTransfer saveUnitWizard saveWork saveWorker saveWorkerPay tgFlushNow tgGetChat tgRearm tgSave tgTest toggleAgreed ' +
+  'saveClosing saveCustody saveCustodyFund saveCustodyReturn saveDays saveExpense saveExtract saveFixMethods saveIncome ' +
+  'saveLock saveOpening saveParty savePartyClosing savePass saveProgress saveProject saveSched ' +
+  'saveSplit saveTransfer saveUnitWizard saveWorker saveWorkerPay tgFlushNow tgGetChat tgRearm tgSave tgTest toggleAgreed ' +
   'toggleExtra undoClosing xlAll xlDoImport xlLoad xlReset xlTog exportBackupFile').split(/\s+/));
 const MOB_NAV_SKIP = new Set(['xlimport', 'tg', 'backup', 'exit', 'trash', 'audit']);
 const MOB_TABS = [
@@ -11438,9 +11500,10 @@ function mobBanner() {
   const pend = MOB.outbox.filter(e => !e.del);
   const orphan = MOB.outbox.filter(e => e.orphan);
   let h = '';
-  if (orphan.length) h += `<div class="mban err">⚠ ${orphan.length} سداد حسابه اتمسح على اللاب — هيستناك على اللاب تختارله حساب.</div>`;
+  if (orphan.length) h += `<div class="mban err">⚠ ${orphan.length} حركة حسابها اتمسح على اللاب — هتستناك على اللاب تختارلها حساب.</div>`;
   const unsent = MOB.outbox.filter(e => e.sentRev < e.rev);
-  if (unsent.length && (UI.view === 'dash' || UI.view === 'party')) h += `<div class="mban">📶 ${unsent.length === 1 ? 'حركة' : unsent.length + ' حركات'} لسه ما اتبعتتش — هتتبعت لوحدها أول ما النت يرجع.
+  if (unsent.some(e => e.kind === 'item') && !mobLapItems()) h += `<div class="mban">💻 البنود اللي سجلتها هنا مستنية البرنامج على اللاب يتحدّث — اقفل البرنامج على اللاب وافتحه تاني، وهتدخل لوحدها.</div>`;
+  else if (unsent.length && (UI.view === 'dash' || UI.view === 'party')) h += `<div class="mban">📶 ${unsent.length === 1 ? 'حركة' : unsent.length + ' حركات'} لسه ما اتبعتتش — هتتبعت لوحدها أول ما النت يرجع.
     <a href="javascript:void 0" onclick="mobSync(true)">ابعت دلوقتي</a></div>`;
   return h;
 }
