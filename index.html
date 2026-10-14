@@ -311,6 +311,8 @@ tr.projsub td:first-child{color:var(--mut);font-weight:700}
 tfoot tr.projgrand td{background:#FFFBEB;border-top:3px double var(--navy);font-size:14px}
 .projsum td.pn{font-weight:800;color:var(--navy)}
 @media print{tr.projhead td,tr.projsub td,tfoot tr.projgrand td{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+@keyframes flashrow{0%,45%{background:#FDE68A}100%{background:transparent}}
+tr.flashrow td{animation:flashrow 2.4s ease-out}
 #printArea{display:none}
 /* وضع الطباعة: بنخفي البرنامج ونظهر الورقة بنفسنا — مش مستنيين المتصفح يفعّل ستايل الطباعة.
    ده اللي بيخلي حفظ PDF في نسخة الويندوز يطلع التقرير مش شاشة البرنامج. */
@@ -1227,13 +1229,20 @@ function splitMethod(raw) {
   return { method, recv: method === 'أخرى' ? '' : rest, note: method === 'أخرى' ? String(raw || '').trim() : '' };
 }
 /* كل المستلمين المعروفين — للقايمة الجاهزة في الفورم */
-function knownReceivers() {
+function knownReceivers(pid) {
+  /* لو اتحدد طرف: اللي استلموا منه هو بس — الأحدث الأول. من غير طرف: الكل (للاستخدامات القديمة) */
   const m = {};
-  DB.parties.forEach(p => p.accounts.forEach(a => a.payments.forEach(y => {
-    const r = (y.recv || '').trim();
-    if (r) m[r] = (m[r] || 0) + 1;
-  })));
-  return Object.keys(m).sort((a, b) => m[b] - m[a]);
+  DB.parties.forEach(p => {
+    if (pid && p.id !== pid) return;
+    p.accounts.forEach(a => a.payments.forEach(y => {
+      let r = (y.recv || '').trim();
+      if (!r && y.method && METHOD_STD.indexOf(y.method) < 0) r = (splitMethod(y.method).recv || '').trim();
+      if (!r) return;
+      const o = m[r] = m[r] || { n: 0, last: '' };
+      o.n++; if ((y.date || '') > o.last) o.last = y.date || '';
+    }));
+  });
+  return Object.keys(m).sort((a, b) => (m[b].last || '').localeCompare(m[a].last || '') || m[b].n - m[a].n);
 }
 /* القيم القديمة في خانة الطريقة — مجمّعة عشان تتراجع مرة واحدة */
 function methodMigration() {
@@ -2504,8 +2513,28 @@ function go(v, pid, aid) {
 
 /* ================= الراوتر ================= */
 const VIEWS = { tg: () => viewTg(), assign: () => viewAssignItems(), income: () => viewIncome(), missing: () => viewMissing(), rates: () => viewRates(), expenses: () => viewExpenses(), labor: () => viewLabor(), custody: () => viewCustody(), compare: () => viewCompare(), weekly: () => viewWeekly(), audit: () => viewAudit(), diag: () => viewDiag(), dash: () => viewDash(), contractor: () => viewList(), supplier: () => viewList(), party: () => viewParty(), moves: () => viewMoves(), projects: () => viewProjects(), prices: () => viewPrices(), trash: () => viewTrash(), backup: () => viewBackup(), xlimport: () => viewXlImport(), due: () => viewDue(), cash: () => viewCash(), retention: () => viewRetention() };
+/* السطور في الدفتر: id → «بصمة» السطر من غير عمود الرصيد والأزرار (الرصيد بيتغير لكل اللي تحته لما تعدّل مبلغ) */
+function ledgerSigs() {
+  const m = new Map();
+  document.querySelectorAll('#view tr[onclick*="rowClick("]').forEach(tr => {
+    const k = (tr.getAttribute('onclick').match(/rowClick\(event,'(\w+)','([^']+)'/) || []);
+    if (!k[2]) return;
+    const cells = [...tr.children].slice(0, -2).map(td => td.textContent.trim()).join('|');
+    m.set(k[1] + ':' + k[2], { sig: cells, tr });
+  });
+  return m;
+}
+function flashRow(tr) {
+  tr.classList.remove('flashrow'); void tr.offsetWidth; tr.classList.add('flashrow');
+  setTimeout(() => tr.classList.remove('flashrow'), 2600);
+}
 function render() {
   try { renderNav(); } catch (e) { logErr('renderNav', e.message); }
+  /* نفس الشاشة؟ نفتكر مكان الصفحة ومكان كل جدول عشان نرجع له بعد الرسم */
+  const _key = UI.view + '|' + (UI.pid || '') + '|' + (UI.aid || '') + '|' + (UI.tab || '');
+  const _same = _key === window._lastRenderKey;
+  const _sy = window.scrollY, _wraps = _same ? [...document.querySelectorAll('#view .tbl-wrap')].map(e => e.scrollTop) : null;
+  const _before = _same ? ledgerSigs() : null;
   try {
     $('#view').innerHTML = (VIEWS[UI.view] || VIEWS.dash)();
   } catch (e) {
@@ -2521,6 +2550,25 @@ function render() {
     s.value = UI.q;
     let t = null;
     s.oninput = e => { UI.q = e.target.value; clearTimeout(t); t = setTimeout(rerenderList, 160); };
+  }
+  window._lastRenderKey = _key;
+  if (_same) {
+    try {
+      const ws = document.querySelectorAll('#view .tbl-wrap');
+      _wraps.forEach((t, i) => { if (ws[i]) ws[i].scrollTop = t; });
+      window.scrollTo(0, _sy);
+      /* السطر اللي اتعدّل أو اتضاف: نلوّنه، ولو برة الشاشة ننزل له بأقل حركة */
+      if (_before && _before.size) {
+        const changed = [];
+        ledgerSigs().forEach((v, k) => { const b = _before.get(k); if (!b || b.sig !== v.sig) changed.push(v.tr); });
+        if (changed.length && changed.length <= 8) {
+          changed.forEach(flashRow);
+          const r = changed[0].getBoundingClientRect();
+          if (r.top < 0 || r.bottom > window.innerHeight) changed[0].scrollIntoView({ block: 'nearest' });
+          else { const w = changed[0].closest('.tbl-wrap'); if (w) { const wr = w.getBoundingClientRect(); if (r.top < wr.top || r.bottom > wr.bottom) changed[0].scrollIntoView({ block: 'nearest' }); } }
+        }
+      }
+    } catch (e) { logErr('keepPlace', e.message); }
   }
 }
 function rerenderList() {
@@ -7099,7 +7147,7 @@ function openPay(pid, aid, yid) {
     <div class="grid2">
       <div class="f"><label>اتسلمها مين</label>
         <input id="yRecv" list="recvList" value="${esc(y ? (y.recv || (y.method && METHOD_STD.indexOf(y.method) < 0 ? splitMethod(y.method).recv : '')) : '')}" placeholder="اسم اللي استلم الفلوس">
-        <datalist id="recvList">${knownReceivers().slice(0, 40).map(r => `<option>${esc(r)}</option>`).join('')}</datalist>
+        <datalist id="recvList">${knownReceivers(pid).slice(0, 40).map(r => `<option>${esc(r)}</option>`).join('')}</datalist>
         <div class="hint-k">لو الفلوس اتسلمها حد غير ${esc(p.name)} نفسه — اكتب اسمه هنا.</div></div>
       <div class="f"><label>رقم الشيك (اختياري)</label><input id="yCheque" dir="ltr" value="${esc(y ? y.cheque : '')}"></div>
     </div>
