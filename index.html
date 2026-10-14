@@ -9660,7 +9660,7 @@ function tryUnlock() {
   }
   locked = false;
   $('#lockRoot').innerHTML = '';
-  try { render(); }
+  try { render(); try { applyPendingOps(); } catch (e2) { logErr('pendingOps', e2.message); } }
   catch (e) {
     logErr('unlock/render', e.message);
     $('#view').innerHTML = '<div class="card pad"><b>حصلت مشكلة في فتح الشاشة</b><p>' + esc(e.message) + '</p>' +
@@ -10623,6 +10623,36 @@ function printCash() {
 
 /* ================= التشغيل ================= */
 function bumpChange() { changeCount++; }
+/* ================= تعديلات مستنية: بتتطبّق مرة واحدة أول ما البرنامج على اللاب يتفتح ================= */
+const PENDING_OPS = [
+  { id: 'm2-2026-10-14', label: 'مسطحات المشاريع', run() {
+    const done = [];
+    [['R07', 600], ['R06', 1200], ['O4', 1200], ['O2', 1200]].forEach(([raw, area]) => {
+      const name = canonProject(raw);
+      const b = projBudget(name);
+      if (b.area) { done.push(name + ': متسجل قبل كده ' + fmt(b.area) + ' م² — ماتغيرش'); return; }
+      setBudget(name, Object.assign({}, b, { area }));
+      done.push(name + ' = ' + fmt(area) + ' م²');
+    });
+    return done.join(' · ');
+  } }
+];
+function applyPendingOps() {
+  if (!window.tantawyFS) return;                       // اللاب بس
+  DB.settings.appliedOps = DB.settings.appliedOps || [];
+  const todo = PENDING_OPS.filter(o => DB.settings.appliedOps.indexOf(o.id) < 0);
+  if (!todo.length) return;
+  snapshot();
+  todo.forEach(o => {
+    try {
+      const msg = o.run();
+      DB.settings.appliedOps.push(o.id);
+      logAction('budget', o.label + ': ' + msg);
+      toast(o.label + ' اتسجلت ✓ — ' + msg, 'ok');
+    } catch (e) { logErr('pendingOp', o.id + ': ' + e.message); }
+  });
+  save(true); render();
+}
 async function boot() {
   try {
     $('#sideLogo').src = LOGO;
@@ -10648,6 +10678,7 @@ async function boot() {
     try { history.replaceState({ nav: 0 }, ''); } catch (e) { }
     if (isLockSet()) { locked = true; showLockScreen(); } else render();
     if (!raw) save(true);
+    if (!locked) { try { applyPendingOps(); } catch (e) { logErr('pendingOps', e.message); } }
     if (Store.mode === 'memory') showSaveProblem(0);
     setTimeout(autoBackup, 5000);
   } catch (e) {
