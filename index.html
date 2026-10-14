@@ -303,6 +303,14 @@ tbody tr.adjrow,tbody tr.adjrow:nth-child(even){background:#EFF6FF;font-style:it
 #printArea table.pf3 tbody td,#printArea table.pf3 tfoot td{font-size:7.5px;padding:2px 2px}
 #printArea table.pf3 .chip{font-size:7px;padding:0 4px}
 #printArea table.pf4 .num,#printArea table.pf4 td.dt{white-space:normal}
+/* القاعدة: كل مشروع لوحده — عنوان المشروع وإجماليه جوه الجداول */
+tr.projhead td{background:#EEF2F7;color:var(--navy);font-weight:800;font-size:13px;border-top:2px solid var(--gold);padding-top:9px;padding-bottom:9px}
+tr.projhead td .pc{font-weight:500;font-size:11.5px;color:var(--mut);margin-inline-start:8px}
+tr.projsub td{background:#F8FAFC;font-weight:800;border-top:1px solid #94A3B8;color:var(--navy)}
+tr.projsub td:first-child{color:var(--mut);font-weight:700}
+tfoot tr.projgrand td{background:#FFFBEB;border-top:3px double var(--navy);font-size:14px}
+.projsum td.pn{font-weight:800;color:var(--navy)}
+@media print{tr.projhead td,tr.projsub td,tfoot tr.projgrand td{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 #printArea{display:none}
 /* وضع الطباعة: بنخفي البرنامج ونظهر الورقة بنفسنا — مش مستنيين المتصفح يفعّل ستايل الطباعة.
    ده اللي بيخلي حفظ PDF في نسخة الويندوز يطلع التقرير مش شاشة البرنامج. */
@@ -2557,17 +2565,11 @@ function viewDash() {
     </div>
     <div id="dashRes" style="display:none;margin-top:10px;max-height:340px;overflow:auto"></div>
   </div>
+  ${dashProjSummary()}
   <div class="kpis">
-    <div class="kpi amber"><div class="lbl">مستحق للمقاولين</div><div class="val">${eg(c.rem)}</div><div class="hint">شغل اتعمل ولسه ماخدش حقه</div></div>
-    <div class="kpi amber"><div class="lbl">مستحق للموردين</div><div class="val">${eg(s.rem)}</div><div class="hint">توريدات لسه مش مسددة</div></div>
-    <div class="kpi navy"><div class="lbl">إجمالي اللي عليّ</div><div class="val">${eg(c.rem + s.rem)}</div><div class="hint">${(c.they + s.they) > 0.5 ? 'ولينا عند الغير ' + fmt(c.they + s.they) + ' ج.م' : 'مقاولين + موردين'}</div></div>
     <div class="kpi ${totalCashOnHand() >= 0 ? 'emer' : ''}" ${totalCashOnHand() < 0 ? 'style="border-color:#FCA5A5"' : ''}>
       <div class="lbl">💵 اللي معاك دلوقتي</div><div class="val" style="${totalCashOnHand() < 0 ? 'color:var(--red)' : ''}">${eg(totalCashOnHand())}</div>
       <div class="hint">سيولة الخزن كلها</div></div>
-    <div class="kpi navy"><div class="lbl">المدفوع الشهر ده</div><div class="val">${eg(paidThisMonth)}</div>
-      <div class="hint">وحصّلت ${fmt((DB.income || []).filter(x => (x.date || '').slice(0, 7) === todayISO().slice(0, 7)).reduce((s, x) => s + num(x.amount), 0))}</div></div>
-    ${(c.ret + s.ret) > 0.5 ? `<div class="kpi blue"><div class="lbl">محتجز عندي</div><div class="val">${eg(c.ret + s.ret)}</div><div class="hint">ضمان أعمال لسه ما اتفكش</div></div>` : ''}
-    ${(c.sched + s.sched) > 0.5 ? `<div class="kpi blue"><div class="lbl">مستحق مؤجل / شيكات</div><div class="val">${eg(c.sched + s.sched)}</div><div class="hint">لسه ما اتصرفش</div></div>` : ''}
   </div>
   <div class="grid2" style="align-items:start">
     <div class="card">
@@ -2634,22 +2636,29 @@ function viewDue() {
     if (a.refOnly || a.settled) return;
     const r = accRem(a); if (Math.abs(r) < 0.5) return;
     const last = a.payments.slice().sort((x, y) => (y.date || '').localeCompare(x.date || ''))[0];
-    rows.push({ p, a, r, last: last ? last.date : '' });
+    rows.push({ p, a, r, last: last ? last.date : '', d: accDues(a), pd: accPaid(a) });
   }));
   rows.sort((x, y) => y.r - x.r);
-  const tot = rows.reduce((s, r) => s + (r.r > 0 ? r.r : 0), 0);
-  return `
-  <div class="topbar"><div><h1 class="page">المستحقات</h1><p class="sub">المستحق للمقاولين والموردين — كل حساب لسه فيه باقي، مرتب من الأكبر</p></div>
-  <div class="spacer"></div><button class="btn no-print" onclick="printDue()">طباعة</button></div>
-  <div class="kpis"><div class="kpi amber"><div class="lbl">إجمالي اللي عليّ</div><div class="val">${eg(tot)}</div><div class="hint">${rows.length} حساب مفتوح</div></div></div>
-  <div class="card"><div class="tbl-wrap"><table>
-    <thead><tr><th>الطرف</th><th>الحساب</th><th>المشروع</th><th>آخر سداد</th><th class="num">المستحق</th><th class="num">الواصل</th><th class="num">الباقي</th></tr></thead>
-    <tbody>${rows.map(r => { const b = balState(r.r), d = accDues(r.a); return `<tr class="clk" onclick="go('party','${r.p.id}','${r.a.id}')">
+  const sel = UI.filterProject ? rows.filter(x => accProject(x.a) === UI.filterProject) : rows;
+  const owe = x => x.r > 0 ? x.r : 0;
+  const t = projTable(sel, x => accProject(x.a), r => { const b = balState(r.r); return `<tr class="clk" onclick="go('party','${r.p.id}','${r.a.id}')">
       <td><b>${esc(r.p.name)}</b> <span class="chip ${isCarry(r.p) ? 'gray' : r.p.type === 'contractor' ? 'gold' : 'gray'}">${partyKindName(r.p)}</span></td>
-      <td>${esc(r.a.name)}</td><td>${esc(r.a.project || '—')}</td><td>${dsp(r.last)}</td>
-      <td class="num">${d === null ? '—' : fmt(d)}</td><td class="num">${fmt(accPaid(r.a))}</td>
-      <td class="num"><span class="chip ${b.cls}">${b.txt}</span> <b>${fmt(b.v)}</b></td></tr>`; }).join('')}</tbody>
-    <tfoot><tr><td colspan="6">إجمالي المستحق عليّ</td><td class="num">${fmt(tot)}</td></tr></tfoot>
+      <td>${esc(r.a.name)}</td><td>${dsp(r.last)}</td>
+      <td class="num">${r.d === null ? '—' : fmt(r.d)}</td><td class="num">${fmt(r.pd)}</td>
+      <td class="num"><span class="chip ${b.cls}">${b.txt}</span> <b>${fmt(b.v)}</b></td></tr>`; },
+    [null, null, null, x => x.d || 0, x => x.pd, owe], { unit: 'حساب', empty: '<tr><td colspan="6" class="empty"><div class="big">✓</div>مفيش مستحقات</td></tr>' });
+  return `
+  <div class="topbar"><div><h1 class="page">المستحقات${UI.filterProject ? ' — ' + esc(UI.filterProject) : ''}</h1><p class="sub">المستحق للمقاولين والموردين — كل حساب لسه فيه باقي، كل مشروع لوحده</p></div>
+  <div class="spacer"></div><button class="btn no-print" onclick="printDue()">طباعة</button></div>
+  ${projSummary('اللي عليّ — كل مشروع لوحده', rows, x => accProject(x.a), [
+    { t: 'حسابات مفتوحة', cnt: true },
+    { t: 'مستحق للمقاولين', f: x => x.p.type === 'contractor' && !isCarry(x.p) ? owe(x) : 0, fmt },
+    { t: 'مستحق للموردين', f: x => x.p.type !== 'contractor' || isCarry(x.p) ? owe(x) : 0, fmt },
+    { t: 'إجمالي اللي عليّ', f: owe, fmt }], { filter: true })}
+  <div class="card"><div class="tbl-wrap"><table>
+    <thead><tr><th>الطرف</th><th>الحساب</th><th>آخر سداد</th><th class="num">المستحق</th><th class="num">الواصل</th><th class="num">الباقي (اللي عليّ)</th></tr></thead>
+    <tbody>${t.body}</tbody>
+    <tfoot>${t.foot}</tfoot>
   </table></div></div>`;
 }
 
@@ -2672,32 +2681,33 @@ function viewRetention() {
   return `
   <div class="topbar"><div><h1 class="page">المحتجز والسلف</h1><p class="sub">عند مين فلوس محتجزة وبقالها قد إيه — ومين واخد سلفة لسه ما اتخصمتش</p></div>
   <div class="spacer"></div><button class="btn no-print" onclick="printDue()">طباعة</button></div>
-  <div class="kpis">
-    <div class="kpi blue"><div class="lbl">محتجز لسه ما اتفكش</div><div class="val">${eg(totHeld)}</div><div class="hint">${ret.filter(x => x.held > 0.5).length} حساب</div></div>
-    <div class="kpi amber"><div class="lbl">سلف لسه ما اتخصمتش</div><div class="val">${eg(totAdv)}</div><div class="hint">${adv.filter(x => x.out > 0.5).length} حساب</div></div>
-  </div>
+  ${projSummary('المحتجز والسلف — كل مشروع لوحده', ret.map(x => ({ a: x.a, held: x.held, out: 0 })).concat(adv.map(x => ({ a: x.a, held: 0, out: x.out }))), x => accProject(x.a), [
+    { t: 'محتجز لسه ما اتفكش', f: x => x.held, fmt },
+    { t: 'سلف لسه ما اتخصمتش', f: x => x.out, fmt }])}
   <div class="card" style="margin-bottom:16px">
     <div class="card-h"><span class="card-t">سجل المحتجز (ضمان الأعمال)</span></div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>الطرف</th><th>الحساب</th><th>المشروع</th><th>محتجز من</th><th class="num">العمر</th><th class="num">إجمالي المحتجز</th><th class="num">لسه محجوز</th><th class="no-print"></th></tr></thead>
-      <tbody>${ret.length ? ret.map(x => `<tr>
+      <thead><tr><th>الطرف</th><th>الحساب</th><th>محتجز من</th><th class="num">العمر</th><th class="num">إجمالي المحتجز</th><th class="num">لسه محجوز</th><th class="no-print"></th></tr></thead>
+      ${(() => { const t = projTable(ret, x => accProject(x.a), x => `<tr>
         <td class="clk" onclick="go('party','${x.p.id}','${x.a.id}')"><b>${esc(x.p.name)}</b></td>
-        <td>${esc(x.a.name)}</td><td>${esc(x.a.project || '—')}</td><td>${dsp(x.since)}</td>
+        <td>${esc(x.a.name)}</td><td>${dsp(x.since)}</td>
         <td class="num">${x.months} شهر</td><td class="num">${fmt2(x.tot)}</td>
         <td class="num">${x.a.retentionReleased ? '<span class="chip emer">اتفك ' + dsp(x.a.retentionReleaseDate) + '</span>' : '<b style="color:var(--blue)">' + fmt2(x.held) + '</b>'}</td>
-        <td class="no-print">${x.a.retentionReleased ? '' : `<button class="btn sm" onclick="releaseRetention('${x.p.id}','${x.a.id}')">فك المحتجز</button>`}</td></tr>`).join('')
-      : '<tr><td colspan="8" class="empty"><div class="big">🔒</div>مفيش محتجز — تقدر تحدد نسبة محتجز من «تعديل الحساب» وتخصمها في المستخلص</td></tr>'}</tbody>
+        <td class="no-print">${x.a.retentionReleased ? '' : `<button class="btn sm" onclick="releaseRetention('${x.p.id}','${x.a.id}')">فك المحتجز</button>`}</td></tr>`,
+        [null, null, null, null, x => x.tot, x => x.held, 'np'], { unit: 'حساب', empty: '<tr><td colspan="7" class="empty"><div class="big">🔒</div>مفيش محتجز — تقدر تحدد نسبة محتجز من «تعديل الحساب» وتخصمها في المستخلص</td></tr>' });
+        return `<tbody>${t.body}</tbody><tfoot>${t.foot}</tfoot>`; })()}
     </table></div>
   </div>
   <div class="card">
     <div class="card-h"><span class="card-t">السلف</span></div>
     <div class="tbl-wrap"><table>
       <thead><tr><th>الطرف</th><th>الحساب</th><th class="num">السلفة</th><th class="num">اتخصم</th><th class="num">لسه عليه</th></tr></thead>
-      <tbody>${adv.length ? adv.map(x => `<tr class="clk" onclick="go('party','${x.p.id}','${x.a.id}')">
+      ${(() => { const t = projTable(adv, x => accProject(x.a), x => `<tr class="clk" onclick="go('party','${x.p.id}','${x.a.id}')">
         <td><b>${esc(x.p.name)}</b></td><td>${esc(x.a.name)}</td>
         <td class="num">${fmt2(x.paid)}</td><td class="num">${fmt2(x.rec)}</td>
-        <td class="num"><b style="color:${x.out > 0.5 ? 'var(--amber)' : 'var(--emer)'}">${fmt2(x.out)}</b></td></tr>`).join('')
-      : '<tr><td colspan="5" class="empty"><div class="big">💰</div>مفيش سلف مسجلة</td></tr>'}</tbody>
+        <td class="num"><b style="color:${x.out > 0.5 ? 'var(--amber)' : 'var(--emer)'}">${fmt2(x.out)}</b></td></tr>`,
+        [null, null, x => x.paid, x => x.rec, x => x.out], { unit: 'حساب', empty: '<tr><td colspan="5" class="empty"><div class="big">💰</div>مفيش سلف مسجلة</td></tr>' });
+        return `<tbody>${t.body}</tbody><tfoot>${t.foot}</tfoot>`; })()}
     </table></div>
   </div>`;
 }
@@ -3030,8 +3040,12 @@ function viewList() {
           <div style="width:${pc}%;height:100%;background:var(--emer)"></div></div>
           <div style="font-size:10.5px;color:var(--mut);margin-top:2px">${fmt2(pc)}%</div></td></tr>`;
   }).join('')}</tbody>
-      <tfoot><tr><td colspan="${hasOff ? 7 : 6}" style="font-weight:600;color:var(--mut);font-size:12px">
-        ${projs.length} مشروع — كل واحد حساباته لوحده، ومفيش إجمالي مجمّع عليهم</td></tr></tfoot>
+      <tfoot><tr class="projgrand"><td>الإجمالي لكل المشاريع (${projs.length} مشروع)</td>
+        <td class="num"></td>
+        <td class="num">${fmt(projs.reduce((t, n) => t + byProj[n].gross, 0))}</td>
+        <td class="num">${fmt(projs.reduce((t, n) => t + byProj[n].paid, 0))}</td>
+        ${hasOff ? `<td class="num">${fmt(projs.reduce((t, n) => t + byProj[n].off, 0))}</td>` : ''}
+        <td class="num">${fmt(projs.reduce((t, n) => t + byProj[n].rem, 0))}</td><td></td></tr></tfoot>
     </table></div>
     ${byProj[UNASSIGNED] ? `<div class="hint-k" style="padding:9px 18px">فيه <b class="num">${fmt(byProj[UNASSIGNED].gross)}</b> ج.م
       لسه مش محسوبين على أي مشروع — وزّعهم عشان الأرقام تبقى مظبوطة.
@@ -3121,7 +3135,7 @@ function viewParty() {
           <td class="num"><b style="color:${r.t.rem > 0.5 ? 'var(--amber)' : 'var(--emer)'}">${fmt(r.t.rem)}</b></td>
           <td style="font-size:11.5px;color:var(--mut)">${accs.map(x => esc(x.name)).join(' · ') || '—'}</td></tr>`;
     }).join('')}</tbody>
-        <tfoot><tr><td>الإجمالي</td><td class="num">${fmt(rows.reduce((z, r) => z + r.t.gross, 0))}</td>
+        <tfoot><tr class="projgrand"><td>الإجمالي لكل المشاريع</td><td class="num">${fmt(rows.reduce((z, r) => z + r.t.gross, 0))}</td>
           <td class="num">${fmt(rows.reduce((z, r) => z + r.t.paid, 0))}</td>
           ${rows.some(z => Math.abs(z.t.off) > 0.5) ? `<td class="num">${fmt(rows.reduce((z, r) => z + r.t.off, 0))}</td>` : ''}
           <td class="num">${fmt(rows.reduce((z, r) => z + r.t.rem, 0))}</td><td></td></tr></tfoot>
@@ -3388,15 +3402,27 @@ function accDetail(p, a) {
 function viewMoves() {
   const q = (UI.q || '').trim();
   let mv = allMoves();
-  if (UI.filterProject) mv = mv.filter(m => (m.a.project || '') === UI.filterProject);
+  const projOfMove = m => m.k === 'w' ? (itemProjects(m.a, m.ref)[0] || UNASSIGNED) : accProject(m.a);
+  if (UI.filterProject) mv = mv.filter(m => projOfMove(m) === UI.filterProject);
   if (UI.tab === 'pay') mv = mv.filter(m => m.k === 'p');
   else if (UI.tab === 'work') mv = mv.filter(m => m.k === 'w');
   if (q) mv = mv.filter(m => (m.p.name + ' ' + m.a.name + ' ' + m.desc + ' ' + (m.method || '')).includes(q));
-  const tot = mv.reduce((s, m) => s + m.amount, 0);
-  const projects = [...new Set(DB.parties.flatMap(p => p.accounts.map(a => a.project)).filter(Boolean))];
+  const projects = projectNames();
+  const LIM = 250;
+  const work = m => m.k === 'w' ? m.amount : 0, pay = m => m.k === 'p' && m.kind !== 'sched' ? m.amount : 0;
+  /* الجدول بيعرض أول 250 حركة في كل مشروع — الإجماليات محسوبة على الكل */
+  const groups = projGroups(mv, projOfMove);
+  const shown = new Set(); groups.forEach(([, rs]) => rs.slice(0, LIM).forEach(m => shown.add(m)));
+  const t = projTable(mv, projOfMove, m => shown.has(m) ? `<tr class="clk ${m.k === 'p' ? 'payrow' : ''}" onclick="go('party','${m.p.id}','${m.a.id}')">
+      <td style="white-space:nowrap">${dsp(m.date)}</td><td><b>${esc(m.p.name)}</b></td>
+      <td style="font-size:12.5px;color:var(--mut)">${esc(m.a.name)}</td><td>${esc(m.desc || '—')}</td>
+      <td>${moveChip(m)}</td><td style="font-size:12px">${esc(m.method || '')}</td>
+      <td class="num">${m.k === 'w' ? '<b>' + fmt2(m.amount) + '</b>' : ''}</td>
+      <td class="num paid-cell">${m.k === 'p' ? '<b>' + fmt2(m.amount) + '</b>' : ''}</td></tr>` : '',
+    [null, null, null, null, null, null, work, pay], { unit: 'حركة', empty: '<tr><td colspan="8" class="empty">مفيش حركات</td></tr>' });
   return `
   <div class="topbar">
-    <div><h1 class="page">كل الحركات</h1><p class="sub">${mv.length} حركة بإجمالي ${fmt(tot)} ج.م</p></div>
+    <div><h1 class="page">كل الحركات${UI.filterProject ? ' — ' + esc(UI.filterProject) : ''}</h1><p class="sub">${mv.length} حركة — كل مشروع لوحده</p></div>
     <div class="spacer"></div>
     <div class="search no-print"><input id="searchBox" placeholder="دور في كل الحركات…"></div>
     <select class="no-print" style="width:auto" onchange="UI.filterProject=this.value;render()">
@@ -3410,14 +3436,11 @@ function viewMoves() {
     <button class="${UI.tab === 'pay' ? 'on' : ''}" onclick="UI.tab='pay';render()">سدادات</button>
   </div>
   <div class="card"><div class="tbl-wrap"><table>
-    <thead><tr><th style="width:95px">التاريخ</th><th>الطرف</th><th>الحساب</th><th>البند</th><th>النوع</th><th>طريقة الدفع</th><th class="num">المبلغ</th></tr></thead>
-    <tbody>${mv.slice(0, 250).map(m => `<tr class="clk ${m.k === 'p' ? 'payrow' : ''}" onclick="go('party','${m.p.id}','${m.a.id}')">
-      <td style="white-space:nowrap">${dsp(m.date)}</td><td><b>${esc(m.p.name)}</b></td>
-      <td style="font-size:12.5px;color:var(--mut)">${esc(m.a.name)}</td><td>${esc(m.desc || '—')}</td>
-      <td>${moveChip(m)}</td><td style="font-size:12px">${esc(m.method || '')}</td>
-      <td class="num"><b>${fmt2(m.amount)}</b></td></tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="6">الإجمالي (${mv.length} حركة${mv.length > 250 ? ' — معروض أول 250، استخدم البحث للتصفية' : ''})</td><td class="num">${fmt(tot)}</td></tr></tfoot>
-  </table></div></div>`;
+    <thead><tr><th style="width:95px">التاريخ</th><th>الطرف</th><th>الحساب</th><th>البند</th><th>النوع</th><th>طريقة الدفع</th><th class="num">أعمال / توريد</th><th class="num">سداد</th></tr></thead>
+    <tbody>${t.body}</tbody>
+    <tfoot>${t.foot}</tfoot>
+  </table></div>
+  ${groups.some(([, rs]) => rs.length > LIM) ? `<div class="hint-k" style="padding:9px 18px">معروض أول ${LIM} حركة في كل مشروع — الإجماليات محسوبة على كل الحركات. استخدم البحث للتصفية.</div>` : ''}</div>`;
 }
 
 
@@ -3433,7 +3456,8 @@ function viewWeekly() {
     <button class="btn no-print" onclick="waWeekly()">📱 واتساب</button>
     <button class="btn navy no-print" onclick="printWeekly()">🖨 طباعة</button>
   </div>
-  <div class="kpis">
+  ${weeklyProjSummary(w)}
+  <div class="kpis" style="display:none">
     <div class="kpi emer"><div class="lbl">المصروف الأسبوع ده</div><div class="val">${eg(w.paidTotal)}</div>
       <div class="hint">${w.pays.length} حركة صرف${diff !== null ? ' · ' + (diff >= 0 ? '▲ زيادة ' : '▼ أقل ') + fmt(Math.abs(diff)) + ' عن الأسبوع اللي فات' : ''}</div></div>
     <div class="kpi navy"><div class="lbl">التزامات جديدة</div><div class="val">${eg(w.newCommit)}</div>
@@ -3469,26 +3493,28 @@ function viewWeekly() {
     <div class="card-h"><span class="card-t">حركات الأسبوع</span><div class="spacer"></div>
       <span class="chip emer">${w.pays.length} صرف</span><span class="chip amber">${w.items.length} التزام</span></div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th style="width:95px">التاريخ</th><th>الطرف</th><th>الحساب</th><th>البيان</th><th>النوع</th><th class="num">المبلغ</th></tr></thead>
-      <tbody>${w.pays.map(x => ({ d: x.y.date, p: x.p, a: x.a, t: x.y.note || 'سداد', k: 'p', v: num(x.y.amount), kind: x.y.kind }))
-        .concat(w.items.map(x => ({ d: x.i.date, p: x.p, a: x.a, t: x.i.desc, k: 'w', v: itemNet(x.i) })))
-        .sort((a, b) => (b.d || '').localeCompare(a.d || ''))
-        .map(x => `<tr class="clk ${x.k === 'p' ? 'payrow' : ''}" onclick="go('party','${x.p.id}','${x.a.id}')">
+      <thead><tr><th style="width:95px">التاريخ</th><th>الطرف</th><th>الحساب</th><th>البيان</th><th>النوع</th><th class="num">التزام</th><th class="num">صرف</th></tr></thead>
+      ${(() => { const t = projTable(w.pays.map(x => ({ d: x.y.date, p: x.p, a: x.a, t: x.y.note || 'سداد', k: 'p', v: num(x.y.amount), kind: x.y.kind, pr: accProject(x.a) }))
+        .concat(w.items.map(x => ({ d: x.i.date, p: x.p, a: x.a, t: x.i.desc, k: 'w', v: itemNet(x.i), pr: itemProjects(x.a, x.i)[0] })))
+        .sort((a, b) => (b.d || '').localeCompare(a.d || '')), x => x.pr,
+        x => `<tr class="clk ${x.k === 'p' ? 'payrow' : ''}" onclick="go('party','${x.p.id}','${x.a.id}')">
           <td>${dsp(x.d)}</td><td><b>${esc(x.p.name)}</b></td>
           <td style="font-size:12px;color:var(--mut)">${esc(x.a.name)}</td><td>${esc(x.t)}</td>
           <td>${x.k === 'p' ? payChip(x.kind) : '<span class="chip amber">أعمال</span>'}</td>
-          <td class="num"><b>${fmt2(x.v)}</b></td></tr>`).join('')
-      || '<tr><td colspan="6" class="empty"><div class="big">📅</div>مفيش حركات الأسبوع ده</td></tr>'}</tbody>
+          <td class="num">${x.k === 'w' ? '<b>' + fmt2(x.v) + '</b>' : ''}</td><td class="num paid-cell">${x.k === 'p' ? '<b>' + fmt2(x.v) + '</b>' : ''}</td></tr>`,
+        [null, null, null, null, null, x => x.k === 'w' ? x.v : 0, x => x.k === 'p' ? x.v : 0],
+        { unit: 'حركة', empty: '<tr><td colspan="7" class="empty"><div class="big">📅</div>مفيش حركات الأسبوع ده</td></tr>' });
+        return `<tbody>${t.body}</tbody><tfoot>${t.foot}</tfoot>`; })()}
     </table></div>
   </div>
   ${w.sched.length ? `<div class="card" style="margin-top:16px">
     <div class="card-h"><span class="card-t">مستحق عليك الأسبوع الجاي</span></div>
     <div class="tbl-wrap"><table><thead><tr><th>الاستحقاق</th><th>الطرف</th><th>البيان</th><th class="num">المبلغ</th></tr></thead>
-    <tbody>${w.sched.sort((a, b) => a.d - b.d).map(x => `<tr class="clk" onclick="go('party','${x.p.id}','${x.a.id}')">
+    ${(() => { const t = projTable(w.sched.sort((a, b) => a.d - b.d), x => accProject(x.a), x => `<tr class="clk" onclick="go('party','${x.p.id}','${x.a.id}')">
       <td><b>${dsp(x.y.date)}</b> <span class="chip ${x.d <= 2 ? 'amber' : 'blue'}">${x.d === 0 ? 'النهاردة' : 'بعد ' + x.d + ' يوم'}</span></td>
       <td>${esc(x.p.name)}</td><td>${esc(x.y.note || '')}${x.y.cheque ? ' — شيك ' + esc(x.y.cheque) : ''}</td>
-      <td class="num"><b>${fmt2(x.y.amount)}</b></td></tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="3">الإجمالي</td><td class="num">${fmt(w.schedTotal)}</td></tr></tfoot></table></div>
+      <td class="num"><b>${fmt2(x.y.amount)}</b></td></tr>`, [null, null, null, x => x.y.amount], { unit: 'دفعة' });
+      return `<tbody>${t.body}</tbody><tfoot>${t.foot}</tfoot>`; })()}</table></div>
   </div>` : ''}`;
 }
 
@@ -4708,21 +4734,31 @@ function viewBackup() {
 /* ================= المصروفات العمومية ================= */
 function viewExpenses() {
   const q = (UI.q || '').trim();
-  let list = (DB.expenses || []).slice();
-  if (UI.filterProject) list = list.filter(x => (x.project || '') === UI.filterProject);
+  const all = (DB.expenses || []).slice();
+  let list = all.slice();
+  if (UI.filterProject) list = list.filter(x => canonProject(x.project) === UI.filterProject);
   if (UI.tab !== 'all') list = list.filter(x => x.cat === UI.tab);
   if (q) list = list.filter(x => (x.desc + ' ' + x.cat + ' ' + x.note + ' ' + x.project).includes(q));
   list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  const total = list.reduce((s, x) => s + num(x.amount), 0);
-  const month = (DB.expenses || []).filter(x => (x.date || '').slice(0, 7) === todayISO().slice(0, 7))
-    .reduce((s, x) => s + num(x.amount), 0);
-  const byCat = {};
-  (DB.expenses || []).forEach(x => { byCat[x.cat] = (byCat[x.cat] || 0) + num(x.amount); });
-  const cats = Object.keys(byCat).sort((a, b) => byCat[b] - byCat[a]);
+  const cats = [...new Set(all.map(x => x.cat))].sort((a, b) => a.localeCompare(b, 'ar'));
+  const mo = todayISO().slice(0, 7);
   const projects = projectNames();
+  const cols = [null, null, null, null, null, x => x.amount, 'np'];
+  const t = projTable(list, x => x.project, x => {
+    const c = (DB.custody || []).find(k => k.id === x.custodyId);
+    return `<tr>
+      <td style="white-space:nowrap">${dsp(x.date)}</td>
+      <td><b>${esc(x.desc)}</b>${x.note ? `<div style="font-size:11.5px;color:var(--mut)">${esc(x.note)}</div>` : ''}</td>
+      <td><span class="chip gray">${esc(x.cat)}</span></td>
+      <td style="font-size:12px">${esc(x.method || '')}</td>
+      <td style="font-size:12px">${c ? esc(c.holder) : '—'}</td>
+      <td class="num"><b>${fmt2(x.amount)}</b></td>
+      <td class="no-print"><button class="btn sm ghost" onclick="openExpense('${x.id}')">✎</button>
+        <button class="btn sm ghost" onclick="delExpense('${x.id}')">✕</button></td></tr>`;
+  }, cols, { unit: 'مصروف', empty: '<tr><td colspan="7" class="empty"><div class="big">💳</div>مفيش مصروفات — ابدأ بـ «+ مصروف»</td></tr>' });
   return `
   <div class="topbar">
-    <div><h1 class="page">المصروفات العمومية</h1><p class="sub">المصاريف اللي مش مربوطة بمقاول أو مورد — بتدخل في تكلفة المشروع</p></div>
+    <div><h1 class="page">المصروفات العمومية${UI.filterProject ? ' — ' + esc(UI.filterProject) : ''}</h1><p class="sub">المصاريف اللي مش مربوطة بمقاول أو مورد — بتدخل في تكلفة المشروع</p></div>
     <div class="spacer"></div>
     <div class="search no-print"><input id="searchBox" placeholder="دور في المصروفات…"></div>
     <select class="no-print" style="width:auto" onchange="UI.filterProject=this.value;render()">
@@ -4730,32 +4766,133 @@ function viewExpenses() {
     <button class="btn navy no-print" onclick="openExpense()">+ مصروف</button>
     <button class="btn no-print" onclick="printExpenses()">🖨</button>
   </div>
-  <div class="kpis">
-    <div class="kpi navy"><div class="lbl">إجمالي المصروفات</div><div class="val">${eg((DB.expenses || []).reduce((s, x) => s + num(x.amount), 0))}</div>
-      <div class="hint">${(DB.expenses || []).length} مصروف مسجّل</div></div>
-    <div class="kpi emer"><div class="lbl">مصروفات الشهر ده</div><div class="val">${eg(month)}</div><div class="hint">${monthName(todayISO())}</div></div>
-    ${cats.slice(0, 2).map(c => `<div class="kpi gold"><div class="lbl">${esc(c)}</div><div class="val">${eg(byCat[c])}</div></div>`).join('')}
-  </div>
+  ${projSummary('المصروفات — كل مشروع لوحده', UI.tab !== 'all' ? all.filter(x => x.cat === UI.tab) : all, x => x.project, [
+    { t: 'عدد', cnt: true },
+    { t: 'الشهر ده (' + monthName(todayISO()) + ')', f: x => (x.date || '').slice(0, 7) === mo ? x.amount : 0, fmt },
+    { t: 'الإجمالي', f: x => x.amount, fmt }], { filter: true })}
   <div class="tabs no-print">
-    <button class="${UI.tab === 'all' ? 'on' : ''}" onclick="UI.tab='all';render()">الكل</button>
-    ${cats.map(c => `<button class="${UI.tab === c ? 'on' : ''}" onclick="UI.tab='${esc(c).replace(/'/g, "\\'")}';render()">${esc(c)} <span style="opacity:.6">${fmt(byCat[c])}</span></button>`).join('')}
+    <button class="${UI.tab === 'all' ? 'on' : ''}" onclick="UI.tab='all';render()">كل الأبواب</button>
+    ${cats.map(c => `<button class="${UI.tab === c ? 'on' : ''}" onclick="UI.tab='${esc(c).replace(/'/g, "\\'")}';render()">${esc(c)}</button>`).join('')}
   </div>
   <div class="card"><div class="tbl-wrap"><table>
-    <thead><tr><th style="width:95px">التاريخ</th><th>البند</th><th>الباب</th><th>المشروع</th><th>الدفع</th><th>من عهدة</th><th class="num">المبلغ</th><th class="no-print" style="width:70px"></th></tr></thead>
-    <tbody>${list.length ? list.map(x => {
-      const c = (DB.custody || []).find(k => k.id === x.custodyId);
-      return `<tr>
-      <td style="white-space:nowrap">${dsp(x.date)}</td>
-      <td><b>${esc(x.desc)}</b>${x.note ? `<div style="font-size:11.5px;color:var(--mut)">${esc(x.note)}</div>` : ''}</td>
-      <td><span class="chip gray">${esc(x.cat)}</span></td>
-      <td>${esc(x.project || '—')}</td><td style="font-size:12px">${esc(x.method || '')}</td>
-      <td style="font-size:12px">${c ? esc(c.holder) : '—'}</td>
-      <td class="num"><b>${fmt2(x.amount)}</b></td>
-      <td class="no-print"><button class="btn sm ghost" onclick="openExpense('${x.id}')">✎</button>
-        <button class="btn sm ghost" onclick="delExpense('${x.id}')">✕</button></td></tr>`;
-    }).join('') : '<tr><td colspan="8" class="empty"><div class="big">💳</div>مفيش مصروفات — ابدأ بـ «+ مصروف»</td></tr>'}</tbody>
-    <tfoot><tr><td colspan="6">الإجمالي المعروض</td><td class="num">${fmt2(total)}</td><td class="no-print"></td></tr></tfoot>
+    <thead><tr><th style="width:95px">التاريخ</th><th>البند</th><th>الباب</th><th>الدفع</th><th>من عهدة</th><th class="num">المبلغ</th><th class="no-print" style="width:70px"></th></tr></thead>
+    <tbody>${t.body}</tbody>
+    <tfoot>${t.foot}</tfoot>
   </table></div></div>`;
+}
+
+/* ================= القاعدة: كل مشروع لوحده — والإجمالي لكل المشاريع تحت خالص =================
+   أي جدول فيه فلوس في البرنامج بيتقسم بالأداة دي: عنوان لكل مشروع، سطوره، إجماليه —
+   وفي الآخر سطر «الإجمالي لكل المشاريع». «غير محدد» دايماً آخر مشروع. */
+const jsq = v => String(v).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+function projGroups(rows, projOf) {
+  const order = {}; projectNames().forEach((n, i) => { order[n] = i; });
+  const m = new Map();
+  rows.forEach(r => { const n = canonProject(projOf(r)); if (!m.has(n)) m.set(n, []); m.get(n).push(r); });
+  return [...m.entries()].sort((a, b) => ((a[0] === UNASSIGNED) - (b[0] === UNASSIGNED))
+    || ((order[a[0]] === undefined ? 999 : order[a[0]]) - (order[b[0]] === undefined ? 999 : order[b[0]]))
+    || a[0].localeCompare(b[0], 'ar'));
+}
+/* سطر إجمالي بنفس أعمدة الجدول. cols: لكل عمود null (مالوش إجمالي) أو دالة بترجع رقم السطر أو 'np' (عمود مش بيتطبع) */
+function projSumRow(label, rows, cols, cls) {
+  const first = cols.findIndex(c => typeof c === 'function');
+  let h = `<tr class="${cls || ''}"><td colspan="${Math.max(1, first)}">${label}</td>`;
+  for (let i = Math.max(1, first); i < cols.length; i++) {
+    const c = cols[i];
+    if (c === 'np') h += '<td class="no-print"></td>';
+    else if (typeof c === 'function') h += `<td class="num">${fmt2(rows.reduce((t, r) => t + num(c(r)), 0))}</td>`;
+    else h += '<td></td>';
+  }
+  return h + '</tr>';
+}
+/* الجدول مقسوم على المشاريع → { body, foot } */
+function projTable(rows, projOf, rowHtml, cols, opt) {
+  opt = opt || {};
+  if (!rows.length) return { body: opt.empty || '', foot: '' };
+  const groups = projGroups(rows, projOf);
+  let body = '';
+  groups.forEach(([n, rs]) => {
+    body += `<tr class="projhead"><td colspan="${cols.length}">🏗 ${n === UNASSIGNED ? '<span style="color:var(--red)">مالوش مشروع</span>' : '<bdi>' + esc(n) + '</bdi>'}<span class="pc">(${rs.length} ${opt.unit || 'سطر'})</span></td></tr>`;
+    body += rs.map(rowHtml).join('');
+    if (groups.length > 1) body += projSumRow('إجمالي ' + (n === UNASSIGNED ? 'اللي مالوش مشروع' : 'مشروع ' + esc(n)), rs, cols, 'projsub');
+  });
+  const foot = projSumRow(groups.length > 1 ? 'الإجمالي لكل المشاريع (' + groups.length + ' مشروع)'
+    : 'الإجمالي — ' + (groups[0][0] === UNASSIGNED ? 'مالوش مشروع' : 'مشروع ' + esc(groups[0][0])), rows, cols, 'projgrand');
+  return { body, foot };
+}
+/* ملخص فوق الشاشة: سطر لكل مشروع، والإجمالي لكل المشاريع تحت. cols: [{t: العنوان, f: دالة الرقم | cnt: true}] */
+function projSummary(title, rows, projOf, cols, opt) {
+  opt = opt || {};
+  const g = projGroups(rows, projOf);
+  if (!g.length) return '';
+  const cell = (rs, c) => `<td class="num">${c.cnt ? rs.length : (c.fmt || fmt2)(rs.reduce((t, r) => t + num(c.f(r)), 0))}</td>`;
+  const pick = n => opt.filter ? ` class="clk${UI.filterProject === n ? ' selrow' : ''}" onclick="UI.filterProject='${jsq(n)}';render()"` : '';
+  return `<div class="card projsum" style="margin-bottom:16px"><div class="card-h"><span class="card-t">${title}</span>
+      <span class="chip gray">كل مشروع لوحده</span>${opt.filter && UI.filterProject ? `<div class="spacer"></div><button class="btn sm no-print" onclick="UI.filterProject='';render()">اعرض كل المشاريع</button>` : ''}</div>
+    <div class="tbl-wrap"><table><thead><tr><th>المشروع</th>${cols.map(c => `<th class="num">${c.t}</th>`).join('')}</tr></thead>
+    <tbody>${g.map(([n, rs]) => `<tr${pick(n)}><td class="pn">${n === UNASSIGNED ? '<span style="color:var(--red)">مالوش مشروع</span>' : esc(n)}</td>${cols.map(c => cell(rs, c)).join('')}</tr>`).join('')}</tbody>
+    <tfoot><tr class="projgrand"><td>الإجمالي لكل المشاريع</td>${cols.map(c => cell(rows, c)).join('')}</tr></tfoot></table></div></div>`;
+}
+/* العمالة: نصيب كل عامل في كل مشروع — أيامه ومستحقه فيه، والمدفوع متوزع بنسبة المستحق
+   (نفس حسبة projectExtras اللي شاشة المشاريع بتحسب بيها) */
+function laborShares(list) {
+  const out = [];
+  (list || DB.labor || []).forEach(w => {
+    const all = workerDue(w), paid = workerPaid(w), by = new Map();
+    w.days.forEach(d => {
+      const n = canonProject(d.project || w.project);
+      if (!by.has(n)) by.set(n, { w, proj: n, days: 0, due: 0, week: 0 });
+      const x = by.get(n), v = num(d.amount) || num(d.days) * num(d.rate);
+      x.days += num(d.days); x.due += v;
+    });
+    const wk = weekRange();
+    w.days.forEach(d => { if (d.date >= wk.from && d.date <= wk.to) by.get(canonProject(d.project || w.project)).week += num(d.amount) || num(d.days) * num(d.rate); });
+    if (!by.size) by.set(canonProject(w.project), { w, proj: canonProject(w.project), days: 0, due: 0, week: 0 });
+    const parts = [...by.values()];
+    parts.forEach(x => { x.paid = all > 0 ? paid * x.due / all : (x === parts[0] ? paid : 0); x.rem = x.due - x.paid; });
+    out.push(...parts);
+  });
+  return out;
+}
+
+/* الملخص الأسبوعي: كل مشروع لوحده */
+function weeklyProjSummary(w) {
+  const rows = [];
+  w.pays.forEach(x => rows.push({ proj: accProject(x.a), paid: num(x.y.amount), commit: 0, sched: 0, owe: 0 }));
+  w.items.forEach(x => rows.push({ proj: itemProjects(x.a, x.i)[0], paid: 0, commit: itemNet(x.i), sched: 0, owe: 0 }));
+  w.sched.forEach(x => rows.push({ proj: accProject(x.a), paid: 0, commit: 0, sched: num(x.y.amount), owe: 0 }));
+  DB.parties.forEach(p => p.accounts.forEach(a => {
+    if (a.refOnly || a.settled) return;
+    const r = accRem(a); if (r > 0.5) rows.push({ proj: accProject(a), paid: 0, commit: 0, sched: 0, owe: r });
+  }));
+  return projSummary('الأسبوع ده — كل مشروع لوحده', rows, r => r.proj, [
+    { t: 'اتصرف الأسبوع ده', f: r => r.paid, fmt },
+    { t: 'التزامات جديدة', f: r => r.commit, fmt },
+    { t: 'مستحق الأسبوع الجاي', f: r => r.sched, fmt },
+    { t: 'إجمالي اللي عليّ', f: r => r.owe, fmt }]);
+}
+/* لوحة التحكم: كل مشروع لوحده — اللي عليّ للمقاولين والموردين، والمدفوع والمحصّل الشهر ده، والمحتجز والمؤجل */
+function dashProjSummary() {
+  const mo = todayISO().slice(0, 7), rows = [];
+  DB.parties.forEach(p => p.accounts.forEach(a => {
+    if (a.refOnly) return;
+    const r = a.settled ? 0 : accRem(a), owe = r > 0.5 ? r : 0, isCon = p.type === 'contractor' && !isCarry(p);
+    rows.push({ proj: accProject(a), con: isCon ? owe : 0, sup: isCon ? 0 : owe,
+      paid: a.payments.filter(y => y.kind !== 'sched' && (y.date || '').slice(0, 7) === mo).reduce((t, y) => t + num(y.amount), 0),
+      sched: a.payments.filter(y => y.kind === 'sched').reduce((t, y) => t + num(y.amount), 0),
+      ret: accRetHeld(a), inc: 0 });
+  }));
+  (DB.income || []).filter(x => (x.date || '').slice(0, 7) === mo).forEach(x => rows.push({ proj: x.project, con: 0, sup: 0, paid: 0, sched: 0, ret: 0, inc: num(x.amount) }));
+  const any = k => rows.some(r => Math.abs(r[k]) > 0.5);
+  const cols = [
+    { t: 'مستحق للمقاولين', f: r => r.con, fmt },
+    { t: 'مستحق للموردين', f: r => r.sup, fmt },
+    { t: 'إجمالي اللي عليّ', f: r => r.con + r.sup, fmt },
+    { t: 'اتدفع الشهر ده', f: r => r.paid, fmt },
+    { t: 'اتحصّل الشهر ده', f: r => r.inc, fmt }];
+  if (any('ret')) cols.push({ t: 'محتجز عندي', f: r => r.ret, fmt });
+  if (any('sched')) cols.push({ t: 'مؤجل / شيكات', f: r => r.sched, fmt });
+  return projSummary('كل مشروع لوحده', rows.filter(r => cols.some(c => Math.abs(c.f(r)) > 0.5)), r => r.proj, cols);
 }
 
 /* ================= العمالة اليومية ================= */
@@ -4763,42 +4900,46 @@ function viewLabor() {
   const q = (UI.q || '').trim();
   let list = (DB.labor || []).slice();
   if (q) list = list.filter(w => (w.name + ' ' + w.role + ' ' + w.project).includes(q));
-  list.sort((a, b) => workerRem(b) - workerRem(a));
-  const due = list.reduce((s, w) => s + workerDue(w), 0);
-  const paid = list.reduce((s, w) => s + workerPaid(w), 0);
   const wk = weekRange();
-  const weekDays = (DB.labor || []).reduce((s, w) => s + w.days.filter(d => d.date >= wk.from && d.date <= wk.to)
-    .reduce((t, d) => t + (num(d.amount) || num(d.days) * num(d.rate)), 0), 0);
-  return `
-  <div class="topbar">
-    <div><h1 class="page">العمالة اليومية</h1><p class="sub">العمال اللي بيتحاسبوا باليومية — مش بعقد</p></div>
-    <div class="spacer"></div>
-    <div class="search no-print"><input id="searchBox" placeholder="دور على عامل…"></div>
-    <button class="btn navy no-print" onclick="openWorker()">+ عامل</button>
-    <button class="btn no-print" onclick="printLabor()">🖨 كشف الأسبوع</button>
-  </div>
-  <div class="kpis">
-    <div class="kpi navy"><div class="lbl">إجمالي المستحق</div><div class="val">${eg(due)}</div><div class="hint">${list.length} عامل</div></div>
-    <div class="kpi emer"><div class="lbl">المدفوع</div><div class="val">${eg(paid)}</div></div>
-    <div class="kpi amber"><div class="lbl">الباقي للعمال</div><div class="val">${eg(due - paid)}</div></div>
-    <div class="kpi gold"><div class="lbl">يوميات الأسبوع ده</div><div class="val">${eg(weekDays)}</div>
-      <div class="hint">${dsp(wk.from)} — ${dsp(wk.to)}</div></div>
-  </div>
-  <div class="card"><div class="tbl-wrap"><table>
-    <thead><tr><th>الاسم</th><th>الشغلانة</th><th class="num">اليومية</th><th class="num">أيام</th><th class="num">المستحق</th><th class="num">المدفوع</th><th class="num">الباقي</th><th class="no-print" style="width:150px"></th></tr></thead>
-    <tbody>${list.length ? list.map(w => {
-      const dd = w.days.reduce((s, d) => s + num(d.days), 0), rem = workerRem(w);
-      return `<tr>
+  const allSh = laborShares(DB.labor || []);
+  let sh = laborShares(list);
+  if (UI.filterProject) sh = sh.filter(x => x.proj === UI.filterProject);
+  sh.sort((a, b) => b.rem - a.rem);
+  const cols = [null, null, null, x => x.days, x => x.due, x => x.paid, x => x.rem, 'np'];
+  const t = projTable(sh, x => x.proj, x => {
+    const w = x.w;
+    return `<tr>
       <td><b>${esc(w.name)}</b>${w.phone ? `<div style="font-size:11.5px;color:var(--mut)" class="num">${esc(w.phone)}</div>` : ''}</td>
-      <td>${esc(w.role || '—')}</td><td class="num">${fmt2(w.rate)}</td><td class="num">${fmt2(dd)}</td>
-      <td class="num">${fmt2(workerDue(w))}</td><td class="num" style="color:var(--emer)">${fmt2(workerPaid(w))}</td>
-      <td class="num"><b style="color:${rem > 0.5 ? 'var(--amber)' : 'var(--emer)'}">${fmt2(rem)}</b></td>
+      <td>${esc(w.role || '—')}</td><td class="num">${fmt2(w.rate)}</td><td class="num">${fmt2(x.days)}</td>
+      <td class="num">${fmt2(x.due)}</td><td class="num" style="color:var(--emer)">${fmt2(x.paid)}</td>
+      <td class="num"><b style="color:${x.rem > 0.5 ? 'var(--amber)' : 'var(--emer)'}">${fmt2(x.rem)}</b></td>
       <td class="no-print">
         <button class="btn sm" onclick="openDays('${w.id}')">+ أيام</button>
         <button class="btn sm gold" onclick="openWorkerPay('${w.id}')">+ صرف</button>
+        <button class="btn sm ghost" onclick="UI.pid='${w.id}';render()" title="كشف العامل">📄</button>
         <button class="btn sm ghost" onclick="openWorker('${w.id}')">✎</button></td></tr>`;
-    }).join('') : '<tr><td colspan="8" class="empty"><div class="big">👷</div>مفيش عمال — ابدأ بـ «+ عامل»</td></tr>'}</tbody>
-    <tfoot><tr><td colspan="4">الإجمالي</td><td class="num">${fmt2(due)}</td><td class="num">${fmt2(paid)}</td><td class="num">${fmt2(due - paid)}</td><td class="no-print"></td></tr></tfoot>
+  }, cols, { unit: 'عامل', empty: '<tr><td colspan="8" class="empty"><div class="big">👷</div>مفيش عمال — ابدأ بـ «+ عامل»</td></tr>' });
+  return `
+  <div class="topbar">
+    <div><h1 class="page">العمالة اليومية${UI.filterProject ? ' — ' + esc(UI.filterProject) : ''}</h1><p class="sub">العمال اللي بيتحاسبوا باليومية — مش بعقد</p></div>
+    <div class="spacer"></div>
+    <div class="search no-print"><input id="searchBox" placeholder="دور على عامل…"></div>
+    <select class="no-print" style="width:auto" onchange="UI.filterProject=this.value;render()">
+      <option value="">كل المشاريع</option>${projectNames().map(x => `<option ${UI.filterProject === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
+    <button class="btn navy no-print" onclick="openWorker()">+ عامل</button>
+    <button class="btn no-print" onclick="printLabor()">🖨 كشف الأسبوع</button>
+  </div>
+  ${projSummary('العمالة — كل مشروع لوحده', allSh, x => x.proj, [
+    { t: 'أيام', f: x => x.days },
+    { t: 'المستحق', f: x => x.due, fmt },
+    { t: 'المدفوع', f: x => x.paid, fmt },
+    { t: 'الباقي للعمال', f: x => x.rem, fmt },
+    { t: 'يوميات الأسبوع ده', f: x => x.week, fmt }], { filter: true })}
+  <div class="hint-k" style="margin:-8px 2px 10px">الأسبوع: ${dsp(wk.from)} — ${dsp(wk.to)} · العامل اللي اشتغل في أكتر من مشروع بيظهر في كل مشروع بأيامه فيه، والمدفوع له متوزع بنفس النسبة.</div>
+  <div class="card"><div class="tbl-wrap"><table>
+    <thead><tr><th>الاسم</th><th>الشغلانة</th><th class="num">اليومية</th><th class="num">أيام</th><th class="num">المستحق</th><th class="num">المدفوع</th><th class="num">الباقي</th><th class="no-print" style="width:185px"></th></tr></thead>
+    <tbody>${t.body}</tbody>
+    <tfoot>${t.foot}</tfoot>
   </table></div></div>
   ${UI.pid && (DB.labor || []).find(w => w.id === UI.pid) ? workerDetail((DB.labor || []).find(w => w.id === UI.pid)) : ''}`;
 }
@@ -4838,13 +4979,15 @@ function viewCustody() {
     <button class="btn navy no-print" onclick="openCustody()">+ عهدة جديدة</button>
     <button class="btn no-print" onclick="printCustody()">🖨</button>
   </div>
-  <div class="kpis">
-    <div class="kpi amber"><div class="lbl">فلوس مع الناس دلوقتي</div><div class="val">${eg(totalOut)}</div>
-      <div class="hint">${open.length} عهدة مفتوحة</div></div>
-    <div class="kpi navy"><div class="lbl">إجمالي العُهد المصروفة</div><div class="val">${eg(totalFunded)}</div></div>
-    <div class="kpi emer"><div class="lbl">اتصرف بإيصالات</div><div class="val">${eg(list.reduce((s, c) => s + custodySpent(c), 0))}</div></div>
-  </div>
-  <div class="accs">${list.length ? list.map(c => {
+  ${projSummary('العُهد — كل مشروع لوحده', list, c => c.project, [
+    { t: 'عُهد مفتوحة', f: c => c.closed ? 0 : 1, fmt },
+    { t: 'اتصرفلهم', f: c => custodyFunded(c), fmt },
+    { t: 'اتصرف بإيصالات', f: c => custodySpent(c), fmt },
+    { t: 'رجّعوا', f: c => custodyReturned(c), fmt },
+    { t: 'لسه معاهم', f: c => c.closed ? 0 : custodyBalance(c), fmt }])}
+  ${list.length ? projGroups(list, c => c.project).map(([n, cs]) => `<h3 style="margin:6px 2px 10px;color:var(--navy);font-size:15px;border-inline-start:4px solid var(--gold);padding-inline-start:9px">🏗 ${n === UNASSIGNED ? 'مالوش مشروع' : esc(n)}
+    <span style="font-weight:500;font-size:12px;color:var(--mut)">— لسه مع الناس ${fmt(cs.filter(c => !c.closed).reduce((s, c) => s + custodyBalance(c), 0))}</span></h3>
+  <div class="accs" style="margin-bottom:16px">${cs.map(c => {
     const f = custodyFunded(c), sp = custodySpent(c), rt = custodyReturned(c), bal = custodyBalance(c);
     const pc = f > 0 ? (sp + rt) / f * 100 : 0;
     return `<div class="proj-card">
@@ -4867,7 +5010,7 @@ function viewCustody() {
         <button class="btn sm" onclick="go('expenses');UI.q='';UI.tab='all'">شوف المصروفات</button>
       </div>
     </div>`;
-  }).join('') : '<div class="empty"><div class="big">🎒</div>مفيش عُهد — ابدأ بـ «+ عهدة جديدة»</div>'}</div>`;
+  }).join('')}</div>`).join('') : '<div class="empty"><div class="big">🎒</div>مفيش عُهد — ابدأ بـ «+ عهدة جديدة»</div>'}`;
 }
 
 /* ================= مقارنة المشاريع ================= */
@@ -7897,20 +8040,23 @@ function printReport(title, inner) {
   printAs(title + ' - ' + dsp(todayISO()));
 }
 function printSummary() {
-  const c = grandTotals('contractor'), s = grandTotals('supplier');
-  const rows = DB.parties.map(p => ({ p, t: partyTotals(p) })).filter(x => Math.abs(x.t.rem) > 0.5).sort((a, b) => b.t.rem - a.t.rem);
-  printReport('ملخص حسابات المقاولين والموردين', `
-    <table style="margin-bottom:14px"><tbody>
-      <tr><td style="font-weight:700;background:#F8FAFC">مستحق للمقاولين</td><td class="num">${fmt2(c.rem)}</td>
-          <td style="font-weight:700;background:#F8FAFC">مستحق للموردين</td><td class="num">${fmt2(s.rem)}</td></tr>
-      <tr><td style="font-weight:700;background:#F8FAFC">إجمالي المصروف</td><td class="num">${fmt2(c.paid + s.paid)}</td>
-          <td style="font-weight:700;background:#F8FAFC">إجمالي اللي عليّ</td><td class="num"><b>${fmt2(c.rem + s.rem)}</b></td></tr>
-    </tbody></table>
-    <table><thead><tr><th>الطرف</th><th>النوع</th><th class="num">الإجمالي</th><th class="num">الواصل</th><th class="num">الباقي</th><th>الحالة</th></tr></thead>
-    <tbody>${rows.map(x => { const b = balState(x.t.rem); return `<tr><td>${esc(x.p.name)}</td>
+  const rows = [];
+  DB.parties.forEach(p => partyProjects(p).forEach(n => {
+    const t = partyProjTotals(p, n);
+    if (Math.abs(t.rem) > 0.5) rows.push({ p, n, t });
+  }));
+  rows.sort((a, b) => b.t.rem - a.t.rem);
+  const owe = x => x.t.rem > 0 ? x.t.rem : 0;
+  const t = projTable(rows, x => x.n, x => { const b = balState(x.t.rem); return `<tr><td>${esc(x.p.name)}</td>
       <td>${partyKindName(x.p)}</td><td class="num">${fmt2(x.t.gross)}</td>
-      <td class="num">${fmt2(x.t.paid)}</td><td class="num">${fmt2(b.v)}</td><td>${b.txt}</td></tr>`; }).join('')}</tbody>
-    <tfoot><tr><td colspan="4">إجمالي المستحق على الشركة</td><td class="num">${fmt2(c.rem + s.rem)}</td><td></td></tr></tfoot></table>`);
+      <td class="num">${fmt2(x.t.paid)}</td><td class="num">${fmt2(b.v)}</td><td>${b.txt}</td></tr>`; },
+    [null, null, x => x.t.gross, x => x.t.paid, owe, null], { unit: 'طرف' });
+  printReport('ملخص حسابات المقاولين والموردين', `
+    ${dashProjSummary()}
+    <table><thead><tr><th>الطرف</th><th>النوع</th><th class="num">الإجمالي</th><th class="num">الواصل</th><th class="num">الباقي</th><th>الحالة</th></tr></thead>
+    <tbody>${t.body || '<tr><td colspan="6" style="text-align:center;color:#94A3B8">لا يوجد</td></tr>'}</tbody>
+    <tfoot>${t.foot}</tfoot></table>
+    <div class="hint-k">«الباقي» في سطر الإجمالي = اللي على الشركة بس (من غير اللي لينا عند الغير).</div>`);
 }
 function printProjects() {
   const names = projectNames();
@@ -7918,7 +8064,11 @@ function printProjects() {
     <thead><tr><th>المشروع</th><th class="num">الحسابات</th><th class="num">إجمالي الأعمال</th><th class="num">المصروف</th><th class="num">الباقي</th><th class="num">مقاولين</th><th class="num">موردين</th></tr></thead>
     <tbody>${names.map(n => { const s = projectStats(n); return `<tr><td><b>${esc(n)}</b></td><td class="num">${s.accs}</td>
       <td class="num">${fmt2(s.gross)}</td><td class="num">${fmt2(s.paid)}</td><td class="num">${fmt2(s.rem)}</td>
-      <td class="num">${fmt2(s.con)}</td><td class="num">${fmt2(s.sup)}</td></tr>`; }).join('')}</tbody></table>`);
+      <td class="num">${fmt2(s.con)}</td><td class="num">${fmt2(s.sup)}</td></tr>`; }).join('')}</tbody>
+    ${(() => { const st = names.map(n => projectStats(n)), sm = k => st.reduce((t, s) => t + num(s[k]), 0);
+      return `<tfoot><tr class="projgrand"><td>الإجمالي لكل المشاريع (${names.length} مشروع)</td><td class="num">${sm('accs')}</td>
+        <td class="num">${fmt2(sm('gross'))}</td><td class="num">${fmt2(sm('paid'))}</td><td class="num">${fmt2(sm('rem'))}</td>
+        <td class="num">${fmt2(sm('con'))}</td><td class="num">${fmt2(sm('sup'))}</td></tr></tfoot>`; })()}</table>`);
 }
 function printDue() {
   const rows = [];
@@ -7928,11 +8078,15 @@ function printDue() {
     rows.push({ p, a, r });
   }));
   rows.sort((x, y) => y.r - x.r);
-  printReport('كشف المستحقات', `<table>
-    <thead><tr><th>الطرف</th><th>الحساب</th><th>المشروع</th><th class="num">المستحق</th><th class="num">الواصل</th><th class="num">الباقي</th></tr></thead>
-    <tbody>${rows.map(x => `<tr><td>${esc(x.p.name)}</td><td>${esc(x.a.name)}</td><td>${esc(x.a.project || '—')}</td>
-      <td class="num">${fmt2(accDues(x.a) || 0)}</td><td class="num">${fmt2(accPaid(x.a))}</td><td class="num"><b>${fmt2(x.r)}</b></td></tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="5">الإجمالي</td><td class="num">${fmt2(rows.reduce((s, x) => s + (x.r > 0 ? x.r : 0), 0))}</td></tr></tfoot></table>`);
+  const sel = UI.filterProject ? rows.filter(x => accProject(x.a) === UI.filterProject) : rows;
+  const t = projTable(sel, x => accProject(x.a), x => `<tr><td>${esc(x.p.name)}</td><td>${esc(x.a.name)}</td>
+      <td class="num">${fmt2(accDues(x.a) || 0)}</td><td class="num">${fmt2(accPaid(x.a))}</td><td class="num"><b>${fmt2(x.r)}</b></td></tr>`,
+    [null, null, x => accDues(x.a) || 0, x => accPaid(x.a), x => x.r > 0 ? x.r : 0], { unit: 'حساب' });
+  printReport('كشف المستحقات' + (UI.filterProject ? ' — ' + UI.filterProject : ''), `
+    ${projSummary('ملخص — كل مشروع لوحده', sel, x => accProject(x.a), [{ t: 'حسابات', cnt: true }, { t: 'اللي عليّ', f: x => x.r > 0 ? x.r : 0 }])}
+    <table><thead><tr><th>الطرف</th><th>الحساب</th><th class="num">المستحق</th><th class="num">الواصل</th><th class="num">الباقي</th></tr></thead>
+    <tbody>${t.body || '<tr><td colspan="5" style="text-align:center;color:#94A3B8">لا يوجد</td></tr>'}</tbody>
+    <tfoot>${t.foot}</tfoot></table>`);
 }
 function printCash() {
   const sched = [];
@@ -8421,27 +8575,17 @@ function printWeekly() {
   const w = weeklyReport();
   const parties = Object.entries(w.byParty).sort((a, b) => b[1] - a[1]);
   printReport('الملخص الأسبوعي من ' + dsp(w.range.from) + ' إلى ' + dsp(w.range.to), `
-    <table style="margin-bottom:14px"><tbody>
-      <tr><td style="width:170px;font-weight:700;background:#F8FAFC">المصروف الأسبوع ده</td><td class="num"><b>${fmt2(w.paidTotal)}</b></td>
-          <td style="width:170px;font-weight:700;background:#F8FAFC">التزامات جديدة</td><td class="num">${fmt2(w.newCommit)}</td></tr>
-      <tr><td style="font-weight:700;background:#FFFBEB">مستحق الأسبوع الجاي</td><td class="num" style="background:#FFFBEB"><b>${fmt2(w.schedTotal)}</b></td>
-          <td style="font-weight:700;background:#F8FAFC">إجمالي اللي عليك</td><td class="num"><b>${fmt2(w.totalDue)}</b></td></tr>
-    </tbody></table>
+    ${weeklyProjSummary(w)}
     <div style="font-weight:800;color:var(--navy);margin:12px 0 6px">الصرف على الأطراف</div>
     <table><thead><tr><th>الطرف</th><th class="num">المصروف</th><th class="num">%</th></tr></thead>
     <tbody>${parties.map(x => `<tr><td>${esc(x[0])}</td><td class="num">${fmt2(x[1])}</td>
       <td class="num">${Math.round(x[1] / Math.max(1, w.paidTotal) * 100)}%</td></tr>`).join('')
       || '<tr><td colspan="3" style="text-align:center;color:#94A3B8">لا يوجد</td></tr>'}</tbody>
     <tfoot><tr><td>الإجمالي</td><td class="num">${fmt2(w.paidTotal)}</td><td></td></tr></tfoot></table>
-    <div style="font-weight:800;color:var(--navy);margin:14px 0 6px">الصرف على المشاريع</div>
-    <table><thead><tr><th>المشروع</th><th class="num">المصروف</th></tr></thead>
-    <tbody>${Object.entries(w.byProject).sort((a, b) => b[1] - a[1]).map(x => `<tr><td>${esc(x[0])}</td><td class="num">${fmt2(x[1])}</td></tr>`).join('')
-      || '<tr><td colspan="2" style="text-align:center;color:#94A3B8">لا يوجد</td></tr>'}</tbody></table>
     ${w.sched.length ? `<div style="font-weight:800;color:var(--navy);margin:14px 0 6px">مستحق الأسبوع الجاي</div>
-    <table><thead><tr><th>الاستحقاق</th><th>الطرف</th><th>البيان</th><th class="num">المبلغ</th></tr></thead>
-    <tbody>${w.sched.map(x => `<tr><td>${dsp(x.y.date)}</td><td>${esc(x.p.name)}</td>
-      <td>${esc(x.y.note || '')}</td><td class="num">${fmt2(x.y.amount)}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="3">الإجمالي</td><td class="num">${fmt2(w.schedTotal)}</td></tr></tfoot></table>` : ''}
+    ${(() => { const t = projTable(w.sched, x => accProject(x.a), x => `<tr><td>${dsp(x.y.date)}</td><td>${esc(x.p.name)}</td>
+      <td>${esc(x.y.note || '')}</td><td class="num">${fmt2(x.y.amount)}</td></tr>`, [null, null, null, x => x.y.amount], { unit: 'دفعة' });
+      return `<table><thead><tr><th>الاستحقاق</th><th>الطرف</th><th>البيان</th><th class="num">المبلغ</th></tr></thead><tbody>${t.body}</tbody><tfoot>${t.foot}</tfoot></table>`; })()}` : ''}
     <div class="sign-row"><div><div class="sign-line">الإدارة المالية</div></div><div><div class="sign-line">الإدارة</div></div></div>`);
 }
 function waWeekly() {
@@ -10136,49 +10280,48 @@ function unstick() { document.title = APP_TITLE; document.body.classList.remove(
 /* ================= شاشة الإيرادات ================= */
 function viewIncome() {
   const q = (UI.q || '').trim();
-  let list = (DB.income || []).slice();
+  const all = (DB.income || []).slice();
+  let list = all.slice();
   if (UI.filterProject) list = list.filter(x => canonProject(x.project) === UI.filterProject);
   if (UI.tab !== 'all') list = list.filter(x => x.cat === UI.tab);
   if (q) list = list.filter(x => (x.desc + ' ' + x.cat + ' ' + x.client + ' ' + x.project + ' ' + x.note).includes(q));
   list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  const total = list.reduce((s, x) => s + num(x.amount), 0);
-  const month = (DB.income || []).filter(x => (x.date || '').slice(0, 7) === todayISO().slice(0, 7)).reduce((s, x) => s + num(x.amount), 0);
-  const byCat = {};
-  (DB.income || []).forEach(x => { byCat[x.cat] = (byCat[x.cat] || 0) + num(x.amount); });
-  const cats = Object.keys(byCat).sort((a, b) => byCat[b] - byCat[a]);
+  const cats = [...new Set(all.map(x => x.cat))].sort((a, b) => a.localeCompare(b, 'ar'));
+  const mo = todayISO().slice(0, 7);
   const projects = projectNames();
-  return `
-  <div class="topbar">
-    <div><h1 class="page">الإيرادات والتحصيلات</h1><p class="sub">الفلوس الداخلة — أقساط العملاء، مقدمات الوحدات، التمويل، وأي إيراد</p></div>
-    <div class="spacer"></div>
-    <div class="search no-print"><input id="searchBox" placeholder="دور في الإيرادات…"></div>
-    <select class="no-print" style="width:auto" onchange="UI.filterProject=this.value;render()">
-      <option value="">كل المشاريع</option>${projects.filter(n => n !== UNASSIGNED).map(x => `<option ${UI.filterProject === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
-    <button class="btn navy no-print" onclick="openIncome()">+ إيراد / تحصيل</button>
-    <button class="btn no-print" onclick="printIncome()">🖨</button>
-  </div>
-  <div class="kpis">
-    <div class="kpi emer"><div class="lbl">إجمالي الإيرادات</div><div class="val">${eg(totalIncome())}</div><div class="hint">${(DB.income || []).length} حركة</div></div>
-    <div class="kpi navy"><div class="lbl">إيرادات الشهر ده</div><div class="val">${eg(month)}</div><div class="hint">${monthName(todayISO())}</div></div>
-    ${cats.slice(0, 2).map(c => `<div class="kpi blue"><div class="lbl">${esc(c)}</div><div class="val">${eg(byCat[c])}</div></div>`).join('')}
-  </div>
-  <div class="tabs no-print">
-    <button class="${UI.tab === 'all' ? 'on' : ''}" onclick="UI.tab='all';render()">الكل</button>
-    ${cats.map(c => `<button class="${UI.tab === c ? 'on' : ''}" onclick="UI.tab='${esc(c).replace(/'/g, "\\'")}';render()">${esc(c)} <span style="opacity:.6">${fmt(byCat[c])}</span></button>`).join('')}
-  </div>
-  <div class="card"><div class="tbl-wrap"><table>
-    <thead><tr><th style="width:95px">التاريخ</th><th>البيان</th><th>النوع</th><th>العميل</th><th>المشروع</th><th>الخزنة</th><th class="num">المبلغ</th><th class="no-print" style="width:70px"></th></tr></thead>
-    <tbody>${list.length ? list.map(x => `<tr class="inrow">
+  const t = projTable(list, x => x.project, x => `<tr class="inrow">
       <td style="white-space:nowrap">${dsp(x.date)}</td>
       <td><b>${esc(x.desc)}</b>${x.note ? `<div style="font-size:11.5px;color:var(--mut)">${esc(x.note)}</div>` : ''}</td>
       <td><span class="chip emer">${esc(x.cat)}</span></td>
-      <td>${esc(x.client || '—')}</td><td>${esc(canonProject(x.project) === UNASSIGNED ? '—' : canonProject(x.project))}</td>
+      <td>${esc(x.client || '—')}</td>
       <td style="font-size:12px">${esc(x.treasury || '')}</td>
       <td class="num paid-cell" style="color:var(--emer)"><b>${fmt2(x.amount)}</b></td>
       <td class="no-print"><button class="btn sm ghost" onclick="openIncome('${x.id}')">✎</button>
-        <button class="btn sm ghost" onclick="delIncome('${x.id}')">✕</button></td></tr>`).join('')
-    : '<tr><td colspan="8" class="empty"><div class="big">💰</div>مفيش إيرادات — ابدأ بـ «+ إيراد / تحصيل»</div></td></tr>'}</tbody>
-    <tfoot><tr><td colspan="6">الإجمالي المعروض</td><td class="num">${fmt2(total)}</td><td class="no-print"></td></tr></tfoot>
+        <button class="btn sm ghost" onclick="delIncome('${x.id}')">✕</button></td></tr>`,
+    [null, null, null, null, null, x => x.amount, 'np'],
+    { unit: 'حركة', empty: '<tr><td colspan="7" class="empty"><div class="big">💰</div>مفيش إيرادات — ابدأ بـ «+ إيراد / تحصيل»</td></tr>' });
+  return `
+  <div class="topbar">
+    <div><h1 class="page">الإيرادات والتحصيلات${UI.filterProject ? ' — ' + esc(UI.filterProject) : ''}</h1><p class="sub">الفلوس الداخلة — أقساط العملاء، مقدمات الوحدات، التمويل، وأي إيراد</p></div>
+    <div class="spacer"></div>
+    <div class="search no-print"><input id="searchBox" placeholder="دور في الإيرادات…"></div>
+    <select class="no-print" style="width:auto" onchange="UI.filterProject=this.value;render()">
+      <option value="">كل المشاريع</option>${projects.map(x => `<option ${UI.filterProject === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
+    <button class="btn navy no-print" onclick="openIncome()">+ إيراد / تحصيل</button>
+    <button class="btn no-print" onclick="printIncome()">🖨</button>
+  </div>
+  ${projSummary('الإيرادات — كل مشروع لوحده', UI.tab !== 'all' ? all.filter(x => x.cat === UI.tab) : all, x => x.project, [
+    { t: 'عدد', cnt: true },
+    { t: 'الشهر ده (' + monthName(todayISO()) + ')', f: x => (x.date || '').slice(0, 7) === mo ? x.amount : 0, fmt },
+    { t: 'الإجمالي', f: x => x.amount, fmt }], { filter: true })}
+  <div class="tabs no-print">
+    <button class="${UI.tab === 'all' ? 'on' : ''}" onclick="UI.tab='all';render()">كل الأنواع</button>
+    ${cats.map(c => `<button class="${UI.tab === c ? 'on' : ''}" onclick="UI.tab='${esc(c).replace(/'/g, "\\'")}';render()">${esc(c)}</button>`).join('')}
+  </div>
+  <div class="card"><div class="tbl-wrap"><table>
+    <thead><tr><th style="width:95px">التاريخ</th><th>البيان</th><th>النوع</th><th>العميل</th><th>الخزنة</th><th class="num">المبلغ</th><th class="no-print" style="width:70px"></th></tr></thead>
+    <tbody>${t.body}</tbody>
+    <tfoot>${t.foot}</tfoot>
   </table></div></div>`;
 }
 
@@ -10441,18 +10584,15 @@ function saveOpening() {
 function printIncome() {
   let list = (DB.income || []).slice();
   if (UI.filterProject) list = list.filter(x => canonProject(x.project) === UI.filterProject);
+  if (UI.tab && UI.tab !== 'all' && UI.view === 'income') list = list.filter(x => x.cat === UI.tab);
   list.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-  const byCat = {};
-  list.forEach(x => { byCat[x.cat] = (byCat[x.cat] || 0) + num(x.amount); });
+  const t = projTable(list, x => x.project, x => `<tr><td>${dsp(x.date)}</td><td>${esc(x.desc)}</td><td>${esc(x.cat)}</td>
+      <td>${esc(x.client || '—')}</td><td class="num">${fmt2(x.amount)}</td></tr>`, [null, null, null, null, x => x.amount], { unit: 'حركة' });
   printReport('كشف الإيرادات والتحصيلات' + (UI.filterProject ? ' — ' + UI.filterProject : ''), `
-    <table style="margin-bottom:14px"><thead><tr><th>النوع</th><th class="num">الإجمالي</th></tr></thead>
-    <tbody>${Object.entries(byCat).sort((a, b) => b[1] - a[1]).map(x => `<tr><td>${esc(x[0])}</td><td class="num">${fmt2(x[1])}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td>الإجمالي</td><td class="num">${fmt2(list.reduce((s, x) => s + num(x.amount), 0))}</td></tr></tfoot></table>
-    <table><thead><tr><th>التاريخ</th><th>البيان</th><th>النوع</th><th>العميل</th><th>المشروع</th><th class="num">المبلغ</th></tr></thead>
-    <tbody>${list.map(x => `<tr><td>${dsp(x.date)}</td><td>${esc(x.desc)}</td><td>${esc(x.cat)}</td>
-      <td>${esc(x.client || '—')}</td><td>${esc(canonProject(x.project) === UNASSIGNED ? '—' : canonProject(x.project))}</td>
-      <td class="num">${fmt2(x.amount)}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="5">الإجمالي</td><td class="num">${fmt2(list.reduce((s, x) => s + num(x.amount), 0))}</td></tr></tfoot></table>
+    ${projSummary('ملخص — كل مشروع لوحده', list, x => x.project, [{ t: 'عدد', cnt: true }, { t: 'الإجمالي', f: x => x.amount }])}
+    <table><thead><tr><th>التاريخ</th><th>البيان</th><th>النوع</th><th>العميل</th><th class="num">المبلغ</th></tr></thead>
+    <tbody>${t.body || '<tr><td colspan="5" style="text-align:center;color:#94A3B8">لا يوجد</td></tr>'}</tbody>
+    <tfoot>${t.foot}</tfoot></table>
     <div class="sign-row"><div><div class="sign-line">المحاسب</div></div><div><div class="sign-line">الإدارة</div></div></div>`);
 }
 function printCash() {
@@ -10932,49 +11072,57 @@ function setPeriod(f, t) {
 /* ================= طباعة الأقسام الجديدة ================= */
 function printExpenses() {
   let list = (DB.expenses || []).slice();
-  if (UI.filterProject) list = list.filter(x => (x.project || '') === UI.filterProject);
+  if (UI.filterProject) list = list.filter(x => canonProject(x.project) === UI.filterProject);
+  if (UI.tab && UI.tab !== 'all' && UI.view === 'expenses') list = list.filter(x => x.cat === UI.tab);
   list.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-  const byCat = {};
-  list.forEach(x => { byCat[x.cat] = (byCat[x.cat] || 0) + num(x.amount); });
+  const t = projTable(list, x => x.project, x => `<tr><td>${dsp(x.date)}</td><td>${esc(x.desc)}</td><td>${esc(x.cat)}</td>
+      <td>${esc(x.method || '')}</td><td class="num">${fmt2(x.amount)}</td></tr>`, [null, null, null, null, x => x.amount], { unit: 'مصروف' });
   printReport('كشف المصروفات العمومية' + (UI.filterProject ? ' — ' + UI.filterProject : ''), `
-    <table style="margin-bottom:14px"><thead><tr><th>الباب</th><th class="num">الإجمالي</th></tr></thead>
-    <tbody>${Object.entries(byCat).sort((a, b) => b[1] - a[1]).map(x => `<tr><td>${esc(x[0])}</td><td class="num">${fmt2(x[1])}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td>الإجمالي</td><td class="num">${fmt2(list.reduce((s, x) => s + num(x.amount), 0))}</td></tr></tfoot></table>
-    <table><thead><tr><th>التاريخ</th><th>البند</th><th>الباب</th><th>المشروع</th><th>الدفع</th><th class="num">المبلغ</th></tr></thead>
-    <tbody>${list.map(x => `<tr><td>${dsp(x.date)}</td><td>${esc(x.desc)}</td><td>${esc(x.cat)}</td>
-      <td>${esc(x.project || '—')}</td><td>${esc(x.method || '')}</td><td class="num">${fmt2(x.amount)}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="5">الإجمالي</td><td class="num">${fmt2(list.reduce((s, x) => s + num(x.amount), 0))}</td></tr></tfoot></table>
+    ${projSummary('ملخص — كل مشروع لوحده', list, x => x.project, [{ t: 'عدد', cnt: true }, { t: 'الإجمالي', f: x => x.amount }])}
+    <table><thead><tr><th>التاريخ</th><th>البند</th><th>الباب</th><th>الدفع</th><th class="num">المبلغ</th></tr></thead>
+    <tbody>${t.body || '<tr><td colspan="5" style="text-align:center;color:#94A3B8">لا يوجد</td></tr>'}</tbody>
+    <tfoot>${t.foot}</tfoot></table>
     <div class="sign-row"><div><div class="sign-line">المحاسب</div></div><div><div class="sign-line">الإدارة</div></div></div>`);
 }
 function printLabor() {
   const wk = weekRange();
-  const rows = (DB.labor || []).map(w => {
-    const d = w.days.filter(x => x.date >= wk.from && x.date <= wk.to);
-    return { w, days: d.reduce((s, x) => s + num(x.days), 0), amount: d.reduce((s, x) => s + (num(x.amount) || num(x.days) * num(x.rate)), 0) };
-  }).filter(r => r.days > 0 || workerRem(r.w) > 0.5);
-  printReport('كشف العمالة اليومية — من ' + dsp(wk.from) + ' إلى ' + dsp(wk.to), `
+  const rows = [];
+  (DB.labor || []).forEach(w => {
+    const by = new Map();
+    w.days.filter(x => x.date >= wk.from && x.date <= wk.to).forEach(d => {
+      const n = canonProject(d.project || w.project);
+      if (!by.has(n)) by.set(n, { w, proj: n, days: 0, amount: 0 });
+      const x = by.get(n); x.days += num(d.days); x.amount += num(d.amount) || num(d.days) * num(d.rate);
+    });
+    const parts = [...by.values()];
+    /* الباقي الكلي للعامل بيتكتب مرة واحدة — في أول مشروع ليه — عشان مايتجمعش مرتين */
+    if (!parts.length && workerRem(w) > 0.5) parts.push({ w, proj: canonProject(w.project), days: 0, amount: 0 });
+    parts.forEach((x, i) => { x.rem = i === 0 ? workerRem(w) : 0; rows.push(x); });
+  });
+  const rowsF = UI.filterProject ? rows.filter(x => x.proj === UI.filterProject) : rows;
+  const t = projTable(rowsF, x => x.proj, r => `<tr><td><b>${esc(r.w.name)}</b></td><td>${esc(r.w.role || '')}</td>
+      <td class="num">${fmt2(r.w.rate)}</td><td class="num">${fmt2(r.days)}</td>
+      <td class="num">${fmt2(r.amount)}</td><td class="num">${r.rem ? fmt2(r.rem) : ''}</td><td></td></tr>`,
+    [null, null, null, r => r.days, r => r.amount, r => r.rem, null], { unit: 'عامل' });
+  printReport('كشف العمالة اليومية — من ' + dsp(wk.from) + ' إلى ' + dsp(wk.to) + (UI.filterProject ? ' — ' + UI.filterProject : ''), `
     <table><thead><tr><th>الاسم</th><th>الشغلانة</th><th class="num">اليومية</th><th class="num">أيام الأسبوع</th>
       <th class="num">مستحق الأسبوع</th><th class="num">الباقي الكلي</th><th style="width:110px">التوقيع</th></tr></thead>
-    <tbody>${rows.map(r => `<tr><td><b>${esc(r.w.name)}</b></td><td>${esc(r.w.role || '')}</td>
-      <td class="num">${fmt2(r.w.rate)}</td><td class="num">${fmt2(r.days)}</td>
-      <td class="num">${fmt2(r.amount)}</td><td class="num">${fmt2(workerRem(r.w))}</td><td></td></tr>`).join('')
-      || '<tr><td colspan="7" style="text-align:center;color:#94A3B8">لا يوجد</td></tr>'}</tbody>
-    <tfoot><tr><td colspan="4">الإجمالي</td><td class="num">${fmt2(rows.reduce((s, r) => s + r.amount, 0))}</td>
-      <td class="num">${fmt2(rows.reduce((s, r) => s + workerRem(r.w), 0))}</td><td></td></tr></tfoot></table>
+    <tbody>${t.body || '<tr><td colspan="7" style="text-align:center;color:#94A3B8">لا يوجد</td></tr>'}</tbody>
+    <tfoot>${t.foot}</tfoot></table>
     <div class="sign-row"><div><div class="sign-line">الملاحظ</div></div><div><div class="sign-line">الإدارة</div></div></div>`);
 }
 function printCustody() {
   const list = (DB.custody || []).slice();
-  printReport('كشف العُهد', `
-    <table><thead><tr><th>صاحب العهدة</th><th>المشروع</th><th class="num">اتصرفله</th><th class="num">صرف بإيصالات</th>
-      <th class="num">رجّع</th><th class="num">لسه معاه</th><th>الحالة</th></tr></thead>
-    <tbody>${list.map(c => `<tr><td><b>${esc(c.holder)}</b></td><td>${esc(c.project || '—')}</td>
+  const t = projTable(list, c => c.project, c => `<tr><td><b>${esc(c.holder)}</b></td>
       <td class="num">${fmt2(custodyFunded(c))}</td><td class="num">${fmt2(custodySpent(c))}</td>
       <td class="num">${fmt2(custodyReturned(c))}</td><td class="num"><b>${fmt2(custodyBalance(c))}</b></td>
-      <td>${c.closed ? 'مقفولة' : 'مفتوحة'}</td></tr>`).join('')
-      || '<tr><td colspan="7" style="text-align:center;color:#94A3B8">لا يوجد</td></tr>'}</tbody>
-    <tfoot><tr><td colspan="5">إجمالي اللي مع الناس</td>
-      <td class="num">${fmt2(list.reduce((s, c) => s + custodyBalance(c), 0))}</td><td></td></tr></tfoot></table>
+      <td>${c.closed ? 'مقفولة' : 'مفتوحة'}</td></tr>`,
+    [null, c => custodyFunded(c), c => custodySpent(c), c => custodyReturned(c), c => custodyBalance(c), null], { unit: 'عهدة' });
+  printReport('كشف العُهد', `
+    <table><thead><tr><th>صاحب العهدة</th><th class="num">اتصرفله</th><th class="num">صرف بإيصالات</th>
+      <th class="num">رجّع</th><th class="num">لسه معاه</th><th>الحالة</th></tr></thead>
+    <tbody>${t.body || '<tr><td colspan="6" style="text-align:center;color:#94A3B8">لا يوجد</td></tr>'}</tbody>
+    <tfoot>${t.foot}</tfoot></table>
     <div class="sign-row"><div><div class="sign-line">المحاسب</div></div><div><div class="sign-line">الإدارة</div></div></div>`);
 }
 function printCompare() {
