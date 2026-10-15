@@ -140,6 +140,11 @@ label.f{display:flex;flex-direction:column;gap:5px;font-weight:700;font-size:13.
 @keyframes sp{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion: reduce){.spin{animation:none}}
 .note{font-size:12.5px;color:var(--muted)}
+.dchips{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px;border-bottom:1px solid var(--line);align-items:center}
+.dchip{font:inherit;font-size:13px;min-height:34px;padding:4px 12px;border-radius:999px;border:1px solid var(--line);background:transparent;color:inherit;cursor:pointer}
+.dchip[aria-pressed="true"]{background:var(--gold);border-color:var(--gold);color:#1B3A5C;font-weight:700}
+.dcustom{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.dcustom input{width:84px;min-height:34px;font:inherit;font-size:16px;padding:3px 8px;border-radius:10px;border:1px solid var(--line);background:transparent;color:inherit;text-align:center}
 .sep{height:14px}
 @media (max-width:700px){
   nav.tabs{position:fixed;bottom:0;left:0;right:0;z-index:30;border-top:1px solid var(--line);border-bottom:0;padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -350,13 +355,19 @@ async function connect(){
 }
 function pill(st){return `<span class="pill p-${st}">${STATUS[st]}</span>`;}
 
+const DUE_OPTS=[7,15,30,60,90];
+function dueDays(){const n=+LS.get("dueDays");return n>=1&&n<=366?Math.round(n):7;}
+function setDueDays(n){n=Math.round(+n);if(!(n>=1&&n<=366))return false;LS.set("dueDays",n);render();return true;}
+function daysAr(n){return n===1?"يوم":n===2?"يومين":n<=10?`${n} أيام`:`${n} يوم`;}
 function homeView(){
   const t=todayISO(),od=overdueClients(),odAmt=od.reduce((s,r)=>s+r.amt,0);
   const mk=t.slice(0,7),mon=(D.installments||[]).filter(i=>(i.dueDate||"").slice(0,7)===mk&&find(D.clients,i.clientId));
   const due=mon.reduce((s,i)=>s+(+i.amount||0),0),paid=mon.reduce((s,i)=>s+Math.min(+i.paidAmount||0,+i.amount||0),0);
   const pc=pendingCheques(),pcAmt=pc.reduce((s,c)=>s+(+c.amount||0),0);
   const prom=[];for(const c of D.clients||[])for(const n of c.followups||[]){const st=promiseStatus(c,n);if(st==="today"||(st==="broken"&&daysBetween(n.promiseDate,t)<=7))prom.push({c,n,st});}
-  const week=(D.installments||[]).filter(i=>i.dueDate>=t&&i.dueDate<=addDays(t,7)&&left(i)>0.005&&find(D.clients,i.clientId)).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+  const nd=dueDays(),until=addDays(t,nd);
+  const week=(D.installments||[]).filter(i=>i.dueDate>=t&&i.dueDate<=until&&left(i)>0.005&&find(D.clients,i.clientId)).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+  const weekAmt=week.reduce((s,i)=>s+left(i),0);
   const pend=pending.slice().reverse();
   return `
   ${pend.length?`<div class="panel" style="margin-bottom:14px"><div class="ph"><h2>من الموبايل — في انتظار الكمبيوتر</h2><span class="note">بتتسجل في البرنامج أول ما الكمبيوتر يكون شغال</span></div><div class="list">${pend.map(pendingRow).join("")}</div></div>`:""}
@@ -371,7 +382,9 @@ function homeView(){
     <div class="panel"><div class="ph"><h2>المتأخرين</h2><span class="note">الأكبر الأول</span></div>
       <div class="list">${od.length?od.map(r=>`<div class="row"><button class="linkish" data-client="${r.c.id}" type="button"><b>${esc(r.c.name)}</b><small><bdi class="u">${esc(unitText(r.c))}</bdi> · ${instCount(r.late.length)} · من ${dmh(r.oldest)} (${daysBetween(r.oldest,t)} يوم)</small></button><span class="amt" style="color:var(--late)">${money(r.amt)}</span>${r.c.phone?`<a class="btn small" href="${waLink(r.c)}" target="_blank" rel="noopener">واتساب</a>`:""}</div>`).join(""):`<div class="empty">مفيش ولا عميل متأخر 👌</div>`}</div></div>
     <div class="grid" style="align-content:start">
-      <div class="panel"><div class="ph"><h2>مستحق خلال 7 أيام</h2></div><div class="list">${week.length?week.map(i=>{const c=find(D.clients,i.clientId);return `<div class="row"><button class="linkish" data-client="${c.id}" type="button"><b>${esc(c.name)}</b><small>${weekday(i.dueDate)} ${dmh(i.dueDate)} · <bdi class="u">${esc(unitText(c))}</bdi> · قسط ${i.index}</small></button><span class="amt">${money(left(i))}</span></div>`;}).join(""):`<div class="empty">مفيش أقساط الأسبوع ده</div>`}</div></div>
+      <div class="panel"><div class="ph"><h2>مستحق خلال ${daysAr(nd)}</h2><span class="note">لحد ${dmh(until)}${week.length?` · ${instCount(week.length)} · <b class="money">${money(weekAmt)}</b>`:""}</span></div>
+        <div class="dchips" role="group" aria-label="المدة">${DUE_OPTS.map(n=>`<button type="button" class="dchip" data-days="${n}" aria-pressed="${n===nd}">${n} يوم</button>`).join("")}<label class="dcustom"><span>مدة تانية</span><input id="dueDaysIn" type="text" inputmode="numeric" placeholder="عدد الأيام" value="${DUE_OPTS.includes(nd)?"":nd}" aria-label="عدد أيام تانية"></label></div>
+        <div class="list">${week.length?week.map(i=>{const c=find(D.clients,i.clientId);return `<div class="row"><button class="linkish" data-client="${c.id}" type="button"><b>${esc(c.name)}</b><small>${weekday(i.dueDate)} ${dmh(i.dueDate)} · <bdi class="u">${esc(unitText(c))}</bdi> · قسط ${i.index}</small></button><span class="amt">${money(left(i))}</span></div>`;}).join(""):`<div class="empty">مفيش أقساط مستحقة في المدة دي</div>`}</div></div>
       ${prom.length?`<div class="panel"><div class="ph"><h2>وعود السداد</h2></div><div class="list">${prom.map(p=>`<div class="row"><button class="linkish" data-client="${p.c.id}" type="button"><b>${esc(p.c.name)}</b><small>وعد يوم ${dmh(p.n.promiseDate)}${p.n.promiseAmount?` بـ ${money(p.n.promiseAmount)}`:""} · ${esc(p.n.text||"")}</small></button><span class="pill ${p.st==="broken"?"p-late":"p-soon"}">${PROMISE[p.st]}</span></div>`).join("")}</div></div>`:""}
     </div>
   </div>`;
@@ -537,6 +550,10 @@ function bindCommon(){
     else if(a==="mprev"||a==="mnext"){let [y,m]=monthKey.split("-").map(Number);m+=a==="mnext"?1:-1;if(m<1){m=12;y--;}if(m>12){m=1;y++;}monthKey=`${y}-${String(m).padStart(2,"0")}`;render();}
     else if(a==="mnow"){monthKey=null;render();}}));
   document.querySelectorAll("[data-chq]").forEach(el=>el.addEventListener("click",()=>{const ch=find(D.cheques,el.dataset.id);if(ch)chequeStatusForm(ch,el.dataset.chq);}));
+  document.querySelectorAll("[data-days]").forEach(el=>el.addEventListener("click",()=>setDueDays(el.dataset.days)));
+  const dd=document.getElementById("dueDaysIn");
+  if(dd){const go=()=>{const v=String(dd.value).replace(/[٠-٩]/g,d=>"٠١٢٣٤٥٦٧٨٩".indexOf(d)).trim();if(!v)return;if(!setDueDays(v))toast("اكتب عدد أيام من 1 لـ 366");};
+    dd.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();go();}});dd.addEventListener("change",go);}
   const s=document.getElementById("clientSearch");
   if(s){s.addEventListener("input",()=>{clientQuery=s.value;const pos=s.selectionStart;render();const n=document.getElementById("clientSearch");n.focus();try{n.setSelectionRange(pos,pos);}catch(e){}});}
 }
