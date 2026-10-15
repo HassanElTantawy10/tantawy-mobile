@@ -53,6 +53,7 @@ button{font:inherit;cursor:pointer}
 .btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:9px;padding:8px 14px;font-weight:700;min-height:40px}
 .btn:hover{border-color:var(--gold)}
 .btn.gold{background:var(--gold);border-color:var(--gold);color:#1B1B1B}
+.btn.wa{background:#1FA855;border-color:#1FA855;color:#fff;text-decoration:none;white-space:nowrap}
 .btn.navy{background:var(--navy);border-color:var(--navy);color:#fff}
 .btn.ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.35)}
 .btn.small{padding:5px 10px;min-height:34px;font-size:13px}
@@ -239,7 +240,20 @@ function overdueClients(){const out=[];for(const c of D.clients||[]){const l=ove
 function pendingCheques(cid){return (D.cheques||[]).filter(ch=>(ch.status==="held"||ch.status==="deposited")&&(!cid||ch.clientId===cid)).sort((a,b)=>(a.dueDate||"").localeCompare(b.dueDate||""));}
 function chequeLine(ch,withClient){const c=find(D.clients,ch.clientId);const b=(ch.bank||"").trim();const bank=b?(/^(ال)?بنك/.test(b)?b:"بنك "+b):"";return [withClient?`${c?c.name:"—"} (${unitText(c)})`:"",`شيك ${ch.number||"—"}`,bank,`${money(ch.amount)} ج`,`استحقاق ${dmy(ch.dueDate)}`].filter(Boolean).join(" — ");}
 function arrearsMessage(c){const u=unitText(c),late=overdue(c.id),nx=nextOpen(c.id);const L=[`السيد/ة ${c.name}،`,"تحية طيبة من شركة الطنطاوي للاستثمار العقاري والمقاولات العامة."];if(late.length){const tot=late.reduce((s,i)=>s+left(i),0);L.push(`نحيط سيادتكم علمًا بوجود أقساط مستحقة لم يتم سدادها على وحدتكم (${u}):`);for(const i of late)L.push(`• القسط رقم ${i.index} — استحقاق ${dmy(i.dueDate)} — المتبقي ${money(left(i))} جنيه`);L.push(`إجمالي المستحق حاليًا: ${money(tot)} جنيه.`);if(nx)L.push(`والقسط القادم رقم ${nx.index} بتاريخ ${dmy(nx.dueDate)} بمبلغ ${money(left(nx))} جنيه.`);L.push("برجاء التكرم بالسداد في أقرب وقت، ولأي استفسار يسعدنا تواصلكم معنا.");}else if(nx){L.push(`نذكّر سيادتكم بموعد القسط رقم ${nx.index} لوحدتكم (${u}) بتاريخ ${dmy(nx.dueDate)} بمبلغ ${money(left(nx))} جنيه.`);L.push("برجاء التكرم بالسداد في الموعد.");}else L.push(`نشكر سيادتكم على الالتزام — لا توجد أي مستحقات على وحدتكم (${u}).`);L.push("مع خالص الشكر والتقدير.");return L.join("\n");}
-function waLink(c){const d=String(c.phone||"").replace(/\D/g,"");return `https://api.whatsapp.com/send?phone=${d}&text=${encodeURIComponent(arrearsMessage(c))}`;}
+function waLink(c,msg){const d=String(c.phone||"").replace(/\D/g,"");return `https://api.whatsapp.com/send?phone=${d}&text=${encodeURIComponent(msg==null?arrearsMessage(c):msg)}`;}
+/* نفس رسالة التذكير الرسمية اللي البوت بيبعتها — ولو عليه متأخرات قبلها بنضيف سطر بيها */
+function reminderMessage(c,i){
+  const u=find(D.units,c.unitId),t=u&&find(D.towers,u.towerId);
+  const [arr,n]=arrears(c.id,i.dueDate);
+  const L=[`السادة/ ${c.name} المحترم`,"تحية طيبة وبعد،","",
+    `نود تذكير سيادتكم بقرب موعد استحقاق القسط رقم (${i.index}) من إجمالي (${insts(c.id).length}) قسط، الخاص بالوحدة رقم (${u?u.number:"—"}) بعمارة (${t?t.name:"—"})،`,
+    `بمبلغ وقدره ${money(left(i))} جنيه،`,
+    `وذلك بتاريخ ${dmy(i.dueDate)} الموافق يوم ${weekday(i.dueDate)}.`];
+  if(arr>0.005)L.push("",`مع العلم بوجود ${n===1?"قسط متأخر سابق":`${n} أقساط متأخرة سابقة`} بمبلغ ${money(arr)} جنيه، ليصبح إجمالي المطلوب ${money(arr+left(i))} جنيه.`);
+  L.push("","برجاء التكرم بسداد المبلغ في موعده، ولكم جزيل الشكر.","","وتفضلوا بقبول فائق الاحترام،","شركة الطنطاوي للاستثمار العقاري والمقاولات العامة");
+  return L.join("\n");
+}
+function waRemindBtn(c,i){return c.phone?`<a class="btn small wa" href="${waLink(c,reminderMessage(c,i))}" target="_blank" rel="noopener" aria-label="تذكير ${esc(c.name)} على واتساب">تذكير واتساب</a>`:"";}
 
 /* ---------- the Google script ---------- */
 async function api(op, body, cfg){
@@ -384,7 +398,7 @@ function homeView(){
     <div class="grid" style="align-content:start">
       <div class="panel"><div class="ph"><h2>مستحق خلال ${daysAr(nd)}</h2><span class="note">لحد ${dmh(until)}${week.length?` · ${instCount(week.length)} · <b class="money">${money(weekAmt)}</b>`:""}</span></div>
         <div class="dchips" role="group" aria-label="المدة">${DUE_OPTS.map(n=>`<button type="button" class="dchip" data-days="${n}" aria-pressed="${n===nd}">${n} يوم</button>`).join("")}<label class="dcustom"><span>مدة تانية</span><input id="dueDaysIn" type="text" inputmode="numeric" placeholder="عدد الأيام" value="${DUE_OPTS.includes(nd)?"":nd}" aria-label="عدد أيام تانية"></label></div>
-        <div class="list">${week.length?week.map(i=>{const c=find(D.clients,i.clientId);return `<div class="row"><button class="linkish" data-client="${c.id}" type="button"><b>${esc(c.name)}</b><small>${weekday(i.dueDate)} ${dmh(i.dueDate)} · <bdi class="u">${esc(unitText(c))}</bdi> · قسط ${i.index}</small></button><span class="amt">${money(left(i))}</span></div>`;}).join(""):`<div class="empty">مفيش أقساط مستحقة في المدة دي</div>`}</div></div>
+        <div class="list">${week.length?week.map(i=>{const c=find(D.clients,i.clientId);return `<div class="row"><button class="linkish" data-client="${c.id}" type="button"><b>${esc(c.name)}</b><small>${weekday(i.dueDate)} ${dmh(i.dueDate)} · <bdi class="u">${esc(unitText(c))}</bdi> · قسط ${i.index}</small></button><span class="amt">${money(left(i))}</span>${waRemindBtn(c,i)}</div>`;}).join(""):`<div class="empty">مفيش أقساط مستحقة في المدة دي</div>`}</div></div>
       ${prom.length?`<div class="panel"><div class="ph"><h2>وعود السداد</h2></div><div class="list">${prom.map(p=>`<div class="row"><button class="linkish" data-client="${p.c.id}" type="button"><b>${esc(p.c.name)}</b><small>وعد يوم ${dmh(p.n.promiseDate)}${p.n.promiseAmount?` بـ ${money(p.n.promiseAmount)}`:""} · ${esc(p.n.text||"")}</small></button><span class="pill ${p.st==="broken"?"p-late":"p-soon"}">${PROMISE[p.st]}</span></div>`).join("")}</div></div>`:""}
     </div>
   </div>`;
@@ -411,7 +425,7 @@ function clientDetail(c){
   return `<button class="btn small" data-act="back" type="button">→ كل العملاء</button><div class="sep"></div>
   <div class="panel"><div class="pb">
     <div class="client-head"><div><h2>${esc(c.name)}</h2><div class="muted"><bdi class="u">${esc(unitText(c))}</bdi> · <span dir="ltr">${esc(c.phone||"—")}</span></div></div>
-      <div class="acts"><button class="btn gold" data-act="pay" type="button">＋ تسجيل دفعة</button><button class="btn" data-act="follow" type="button">متابعة / وعد</button><button class="btn" data-act="cheque" type="button">شيك جديد</button>${c.phone?`<a class="btn" href="${waLink(c)}" target="_blank" rel="noopener">واتساب بالمتأخرات</a>`:""}</div></div>
+      <div class="acts"><button class="btn gold" data-act="pay" type="button">＋ تسجيل دفعة</button><button class="btn" data-act="follow" type="button">متابعة / وعد</button><button class="btn" data-act="cheque" type="button">شيك جديد</button>${c.phone&&t.late.length?`<a class="btn" href="${waLink(c)}" target="_blank" rel="noopener">واتساب بالمتأخرات</a>`:""}${c.phone&&nextOpen(c.id)?`<a class="btn wa" href="${waLink(c,reminderMessage(c,nextOpen(c.id)))}" target="_blank" rel="noopener">تذكير واتساب بالقسط الجاي</a>`:""}</div></div>
     <div class="facts"><div><span>سعر الوحدة</span><b>${money(c.total)}</b></div><div><span>المقدم</span><b>${money(c.down)}</b></div><div><span>المدفوع (مقدم + أقساط)</span><b>${money(t.paid)}</b></div><div><span>المتبقي</span><b>${money(t.rem)}</b></div><div><span>متأخر</span><b style="color:${t.lateAmt?"var(--late)":"var(--ok)"}">${money(t.lateAmt)}</b></div></div>
     ${pd.length?`<div class="sep"></div><div class="banner info"><b>من الموبايل — لسه ما اتسجلش في البرنامج:</b><span>${pd.map(p=>pendingRow(p).replace(/<\/?div[^>]*>/g," ")).join("<br>")}</span></div>`:""}
   </div></div>
