@@ -1,6 +1,6 @@
 /* أقساط الطنطاوي: الأبلكيشن يفتح من غير نت من نسخة محفوظة على التليفون.
    لو فيه نت بنجيب الأحدث. البيانات نفسها مش هنا — بتيجي من سكربت جوجل وبتتحفظ آخر نسخة منها على التليفون. */
-const CACHE = 'aqsat-v3';
+const CACHE = 'aqsat-v4';
 const FILES = ['./', './index.html', './manifest.json', './icon-180.png', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', e => {

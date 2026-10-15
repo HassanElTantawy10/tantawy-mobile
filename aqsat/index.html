@@ -141,6 +141,13 @@ label.f{display:flex;flex-direction:column;gap:5px;font-weight:700;font-size:13.
 @keyframes sp{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion: reduce){.spin{animation:none}}
 .note{font-size:12.5px;color:var(--muted)}
+[hidden]{display:none!important}
+.lock{max-width:420px;margin:24px auto}
+.lockbox{display:grid;gap:12px;text-align:center}
+.lockbox h2{margin:0;font-family:var(--display);font-size:23px}
+.lockbox p{margin:0}
+.lockbox input{font-size:18px;text-align:center;letter-spacing:2px}
+.lockbox .btn{width:100%;min-height:46px;font-size:16px}
 .dchips{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px;border-bottom:1px solid var(--line);align-items:center}
 .dchip{font:inherit;font-size:13px;min-height:34px;padding:4px 12px;border-radius:999px;border:1px solid var(--line);background:transparent;color:inherit;cursor:pointer}
 .dchip[aria-pressed="true"]{background:var(--gold);border-color:var(--gold);color:#1B3A5C;font-weight:700}
@@ -171,6 +178,7 @@ label.f{display:flex;flex-direction:column;gap:5px;font-weight:700;font-size:13.
       <span class="dot" id="syncDot"></span>
       <span id="syncText">بيتحمّل…</span>
       <button class="btn ghost small" id="refreshBtn" type="button">↻ تحديث</button>
+      <button class="btn ghost small" id="lockBtn" type="button" aria-label="اقفل الأبلكيشن">🔒</button>
     </div>
   </div>
 </header>
@@ -199,7 +207,36 @@ label.f{display:flex;flex-direction:column;gap:5px;font-weight:700;font-size:13.
 const MONTHS = ["","يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
 const DAYS = ["الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت"];
 const LS = {get(k){try{return JSON.parse(localStorage.getItem("aqsat_"+k));}catch(e){return null;}},set(k,v){try{localStorage.setItem("aqsat_"+k,JSON.stringify(v));}catch(e){}},del(k){try{localStorage.removeItem("aqsat_"+k);}catch(e){}}};
-let CFG = LS.get("cfg"), D = null, liveAt = "", pending = [], outbox = LS.get("outbox") || [], tab = "home", currentClient = null, monthKey = null, loadErr = null, busy = false, lastOk = LS.get("lastOk") || "";
+/* ---------- القفل بكلمة السر ----------
+   كلمة السر بتتراجع عند سكربت جوجل في كل طلب (من غيرها مفيش بيانات حتى لو حد معاه كود الربط)،
+   والنسخة المحفوظة على التليفون متشفّرة بيها (AES-GCM) — من غير كلمة السر مفيش حاجة تتقري. */
+const LOCK_AFTER_MIN = 5;
+const te = new TextEncoder(), td = new TextDecoder();
+function b64(u8){let s="";for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));return btoa(s);}
+function unb64(s){const b=atob(s),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u;}
+async function deriveKey(pw,salt){const base=await crypto.subtle.importKey("raw",te.encode(pw),"PBKDF2",false,["deriveKey"]);return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:200000,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);}
+let V = {base:null,outbox:[],mine:[]}, VKEY = null, VSALT = null, PW = null, locked = true, lockMode = "enter", lockMsg = "", hiddenAt = 0, saving = Promise.resolve();
+async function openVault(pw){
+  const s=LS.get("vault");
+  if(!s){VSALT=crypto.getRandomValues(new Uint8Array(16));VKEY=await deriveKey(pw,VSALT);V={base:null,outbox:[],mine:[]};return "new";}
+  const salt=unb64(s.salt),k=await deriveKey(pw,salt);
+  try{const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:unb64(s.iv)},k,unb64(s.ct));V=Object.assign({base:null,outbox:[],mine:[]},JSON.parse(td.decode(pt)));VSALT=salt;VKEY=k;return "ok";}
+  catch(e){return "bad";}
+}
+function persist(){
+  if(!VKEY)return saving;
+  const snap=JSON.stringify(V),k=VKEY,salt=VSALT;
+  saving=saving.then(async()=>{const iv=crypto.getRandomValues(new Uint8Array(12));const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv},k,te.encode(snap));LS.set("vault",{v:1,salt:b64(salt),iv:b64(iv),ct:b64(new Uint8Array(ct))});}).catch(()=>{});
+  return saving;
+}
+function migrateLegacy(){ // النسخة الأولى كانت بتحفظ من غير تشفير — ننقلها جوه الخزنة ونمسحها
+  const b=LS.get("base"),o=LS.get("outbox"),m=LS.get("mine");
+  if(b&&!V.base)V.base=b;
+  if(Array.isArray(o)){const ids=new Set(V.outbox.map(x=>x.entry&&x.entry.id));for(const x of o)if(x&&x.entry&&!ids.has(x.entry.id))V.outbox.push(x);}
+  if(Array.isArray(m)&&!V.mine.length)V.mine=m;
+  LS.del("base");LS.del("outbox");LS.del("mine");
+}
+let CFG = LS.get("cfg"), D = null, liveAt = "", pending = [], outbox = [], tab = "home", currentClient = null, monthKey = null, loadErr = null, busy = false, lastOk = LS.get("lastOk") || "";
 
 /* ---------- house helpers (from the company standard) ---------- */
 function safeEvalFormula(expr){const a="٠١٢٣٤٥٦٧٨٩";let s=String(expr).replace(/[٠-٩]/g,d=>a.indexOf(d));s=s.replace(/,/g,"").replace(/[^0-9+\-*/(). ]/g,"");let i=0;const peek=()=>s[i];const skip=()=>{while(s[i]===" ")i++;};function E(){skip();let v=T();skip();while(peek()==="+"||peek()==="-"){const op=s[i++];const r=T();v=op==="+"?v+r:v-r;skip();}return v;}function T(){skip();let v=F();skip();while(peek()==="*"||peek()==="/"){const op=s[i++];const r=F();v=op==="*"?v*r:(r===0?0:v/r);skip();}return v;}function F(){skip();if(peek()==="+"){i++;return F();}if(peek()==="-"){i++;return -F();}if(peek()==="("){i++;const v=E();skip();if(peek()===")")i++;return v;}const st=i;while(i<s.length&&/[0-9.]/.test(s[i]))i++;const n=parseFloat(s.slice(st,i));return isNaN(n)?0:n;}try{const r=E();return isFinite(r)?r:0;}catch(e){return 0;}}
@@ -262,12 +299,12 @@ async function api(op, body, cfg){
   const ctl = typeof AbortController!=="undefined" ? new AbortController() : null;
   const tm = setTimeout(()=>{ try{ctl&&ctl.abort();}catch(e){} }, 40000);
   let r;
-  try{ r = await fetch(cfg.url,{method:"POST",body:JSON.stringify(Object.assign({op,key:cfg.key},body||{})),signal:ctl?ctl.signal:undefined}); }
+  try{ r = await fetch(cfg.url,{method:"POST",body:JSON.stringify(Object.assign({op,key:cfg.key},PW?{pw:PW}:{},body||{})),signal:ctl?ctl.signal:undefined}); }
   catch(e){ throw {code:"offline",message:e&&e.name==="AbortError"?"سكربت جوجل اتأخر في الرد":"مفيش اتصال بسكربت جوجل"}; }
   finally{ clearTimeout(tm); }
   if(!r.ok) throw {code:"http",message:"السيرفر رد بـ "+r.status};
   let j; try{ j = await r.json(); }catch(e){ throw {code:"bad_reply",message:"رد مش مفهوم — اتأكد من كود الربط"}; }
-  if(!j.ok) throw {code:"script",message:j.error||"رد غلط"};
+  if(!j.ok) throw {code:j.code||"script",message:j.error||"رد غلط"};
   return j;
 }
 function parseCode(raw){
@@ -278,18 +315,18 @@ function parseCode(raw){
 async function flushOutbox(){
   for(const e of outbox.filter(x=>!x.sent)){
     await api("entry_put",{entry:e.entry});      // same id if repeated → the program records it once
-    e.sent = new Date().toISOString(); LS.set("outbox",outbox);
+    e.sent = new Date().toISOString(); V.outbox = outbox; persist();
   }
 }
 async function load(manual){
   if(busy) return;
-  if(!CFG){ render(); return; }
+  if(!CFG || locked){ render(); return; }
   busy = true; setSync("", "بيحدّث…");
   try{
-    if(!D){ const cached = LS.get("base"); if(cached){ D = cached.data; liveAt = cached.at; render(); } }
+    if(!D){ const cached = V.base; if(cached){ D = cached.data; liveAt = cached.at; render(); } }
     await flushOutbox();
     const j = await api("snap_get",{have:liveAt});
-    if(j.data){ D = JSON.parse(j.data); liveAt = j.at; LS.set("base",{data:D,at:liveAt}); }
+    if(j.data){ D = JSON.parse(j.data); liveAt = j.at; V.base = {data:D,at:liveAt}; persist(); }
     else if(!j.same && !D){ throw {code:"no_live"}; }
     D.settings = D.settings || {};
     const done = new Set(D.webApplied||[]);
@@ -300,11 +337,12 @@ async function load(manual){
     for(const e of ent){ if(!e||!e.id||done.has(e.id)||seen.has(e.id)) continue; seen.add(e.id); pending.push(e); }
     outbox = outbox.filter(o=>!done.has(o.entry.id) && !rej[o.entry.id]);
     for(const o of outbox){ if(!seen.has(o.entry.id)){ seen.add(o.entry.id); pending.push(Object.assign({_unsent:!o.sent},o.entry)); } }
-    for(const r of (D.webRejected||[])){ const o=(LS.get("mine")||[]).find(x=>x.id===r.id); if(o && Date.now()-new Date(o.at||0).getTime()<3*864e5) pending.push(Object.assign({_rejected:r.why},o)); }
-    LS.set("outbox",outbox);
+    for(const r of (D.webRejected||[])){ const o=(V.mine||[]).find(x=>x.id===r.id); if(o && Date.now()-new Date(o.at||0).getTime()<3*864e5) pending.push(Object.assign({_rejected:r.why},o)); }
+    V.outbox = outbox; persist();
     loadErr = null; lastOk = new Date().toISOString(); LS.set("lastOk",lastOk);
     if(manual) toast("اتحدّث ✓");
   }catch(e){
+    if(e.code==="pw"||e.code==="need_setup"||e.code==="locked"){ busy=false; lockNow(e.code==="need_setup"?"":(e.message||"")); if(e.code==="need_setup"){lockMode="create";render();} return; }
     loadErr = e;
     if(D){ pending = outbox.map(o=>Object.assign({_unsent:!o.sent},o.entry)); }
     if(manual) toast(e.code==="offline"?"مفيش نت — بيعرض آخر نسخة اتحمّلت":"ما اتحدّثش: "+(e.message||e.code));
@@ -314,8 +352,8 @@ async function sendEntry(entry){
   entry.id = entry.id || ("w"+Date.now().toString(36)+Math.random().toString(36).slice(2,7));
   entry.at = entry.at || new Date().toISOString().slice(0,19);
   entry.via = "phone";
-  outbox.push({entry,sent:null}); LS.set("outbox",outbox);
-  const mine = (LS.get("mine")||[]).slice(-50); mine.push(entry); LS.set("mine",mine);
+  outbox.push({entry,sent:null}); V.outbox = outbox;
+  const mine = (V.mine||[]).slice(-50); mine.push(entry); V.mine = mine; persist();
   pending.push(Object.assign({_unsent:true},entry));
   try{ await flushOutbox(); pending.forEach(p=>{ if(p.id===entry.id) p._unsent=false; }); return true; }
   catch(e){ return false; }
@@ -337,6 +375,8 @@ function syncState(){
 function render(){
   syncState();
   const m=document.getElementById("main");
+  if(CFG&&locked){showChrome(false);setSync("bad","مقفول 🔒");m.innerHTML=lockView();bindLock();bindCommon();return;}
+  if(!CFG)showChrome(false);
   if(!D){m.innerHTML=errorView();bindCommon();return;}
   if(loadErr&&loadErr.code==="offline"&&!document.getElementById("offlineNote")){}
   const v={home:homeView,clients:clientsView,month:monthView,cheques:chequesView,promises:promisesView}[tab]();
@@ -364,8 +404,93 @@ async function connect(){
   const el=document.getElementById("setupCode"),err=document.getElementById("setupErr");
   const cfg=parseCode(el.value);err.hidden=true;
   if(!cfg){err.textContent="الكود مش مكتمل — لازم يبدأ بـ https://script.google.com وفيه علامة # والمفتاح بعدها.";err.hidden=false;return;}
-  try{await api("ping",{},cfg);}catch(e){err.textContent=(e.message||"مش قادر أوصل للسكربت")+".";err.hidden=false;return;}
-  CFG=cfg;LS.set("cfg",cfg);D=null;liveAt="";load(true);
+  let st;try{st=await api("pw_status",{},cfg);}catch(e){err.textContent=(e.message||"مش قادر أوصل للسكربت")+".";err.hidden=false;return;}
+  CFG=cfg;LS.set("cfg",cfg);D=null;liveAt="";LS.set("pwSet",!!st.set);lockMode=st.set?"enter":"create";locked=true;lockMsg="";render();
+}
+
+/* ---------- شاشة القفل ---------- */
+function lockView(){
+  const head=`<img src="${document.querySelector("header.band img").src}" alt="" style="width:76px;height:76px;object-fit:contain;border-radius:14px;background:#fff;padding:6px;margin:0 auto;display:block">`;
+  if(lockMode==="check")return `<div class="lock"><div class="loading"><div class="spin"></div><b>بيتأكد من كلمة السر…</b></div></div>`;
+  if(lockMode==="nonet")return `<div class="lock panel"><div class="pb lockbox">${head}<h2>محتاج نت أول مرة</h2><p class="muted">أول مرة تفتح على التليفون ده لازم يكون فيه نت عشان نتأكد من كلمة السر.</p><button class="btn gold" data-act="relock" type="button">↻ حاول تاني</button></div></div>`;
+  const create=lockMode==="create";
+  return `<div class="lock panel"><form class="pb lockbox" id="lockForm" novalidate>${head}
+    <h2>${create?"اعمل كلمة سر للأبلكيشن":"الأقساط مقفولة"}</h2>
+    <p class="muted">${create?"هتطلبها كل ما تفتح الأبلكيشن، ومن غيرها محدش يقدر يشوف البيانات حتى لو معاه اللينك. 4 حروف أو أرقام على الأقل.":"اكتب كلمة السر عشان تشوف الحسابات."}</p>
+    <input type="text" name="username" value="الأقساط" autocomplete="username" hidden>
+    <label class="f" for="pw1">كلمة السر<input id="pw1" type="password" autocomplete="${create?"new-password":"current-password"}" dir="ltr"></label>
+    ${create?`<label class="f" for="pw2">اكتبها تاني<input id="pw2" type="password" autocomplete="new-password" dir="ltr"></label>`:""}
+    <div id="lockErr" class="banner bad" ${lockMsg?"":"hidden"}>${esc(lockMsg)}</div>
+    <button class="btn gold" id="lockOk" type="submit">${create?"احفظ كلمة السر وافتح":"افتح"}</button>
+  </form></div>`;
+}
+function bindLock(){
+  const f=document.getElementById("lockForm");if(!f)return;
+  const p1=document.getElementById("pw1");setTimeout(()=>p1.focus(),40);
+  f.addEventListener("submit",async e=>{e.preventDefault();
+    const err=document.getElementById("lockErr"),ok=document.getElementById("lockOk");
+    const fail=m=>{err.textContent=m;err.hidden=false;ok.disabled=false;ok.textContent=lockMode==="create"?"احفظ كلمة السر وافتح":"افتح";};
+    const pw=p1.value;if(!pw)return fail("اكتب كلمة السر.");
+    ok.disabled=true;ok.textContent="لحظة…";
+    if(lockMode==="create"){
+      if(pw.length<4)return fail("كلمة السر لازم تكون 4 حروف أو أرقام على الأقل.");
+      if(pw!==document.getElementById("pw2").value)return fail("الكلمتين مش زي بعض.");
+      try{await api("pw_set",{pw});}catch(x){return fail(x.code==="offline"?"مفيش نت — لازم نت عشان تعمل كلمة السر.":(x.message||"ما اتحفظتش"));}
+      LS.set("pwSet",true);LS.del("vault");
+    }
+    await unlock(pw,fail);
+  });
+}
+async function unlock(pw,fail){
+  const r=await openVault(pw);
+  if(r==="bad")return fail("كلمة السر غلط.");
+  if(r==="new"){ // مفيش نسخة على التليفون — السكربت هو اللي يقول الكلمة صح ولا لأ
+    PW=pw;try{await api("ping");}catch(x){PW=null;VKEY=null;
+      if(x.code==="pw"||x.code==="locked")return fail(x.message);
+      if(x.code==="need_setup"){lockMode="create";lockMsg="";render();return;}
+      return fail(x.code==="offline"?"مفيش نت — أول مرة على التليفون ده لازم يكون فيه نت.":(x.message||"مش قادر أوصل للسكربت"));}
+  }
+  PW=pw;migrateLegacy();outbox=V.outbox||[];locked=false;lockMsg="";D=null;liveAt="";
+  persist();showChrome(true);render();load();
+}
+function lockNow(msg){
+  PW=null;VKEY=null;VSALT=null;V={base:null,outbox:[],mine:[]};D=null;liveAt="";pending=[];outbox=[];currentClient=null;tab="home";clientQuery="";
+  document.querySelectorAll("#tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab==="home"?"page":"false"));
+  locked=true;lockMode="enter";lockMsg=msg||"";document.getElementById("sheetRoot").innerHTML="";render();
+}
+function showChrome(on){document.querySelector("nav.tabs").hidden=!on;document.getElementById("refreshBtn").hidden=!on;document.getElementById("lockBtn").hidden=!on;}
+async function boot(){
+  if(!CFG){render();return;}
+  locked=true;
+  if(LS.get("vault")||LS.get("pwSet")){lockMode="enter";render();return;}
+  lockMode="check";render();
+  try{const st=await api("pw_status");LS.set("pwSet",!!st.set);lockMode=st.set?"enter":"create";}
+  catch(e){lockMode=(e.code==="offline")?"nonet":"enter";if(e.code!=="offline")lockMsg=e.message||"";}
+  render();
+}
+function changePwForm(){
+  const root=document.getElementById("sheetRoot");
+  root.innerHTML=`<div class="sheet-back" id="sb"><form class="sheet" id="pwForm" novalidate><h3>تغيير كلمة السر</h3>
+    <input type="text" name="username" value="الأقساط" autocomplete="username" hidden>
+    <div class="form"><label class="f full" for="pwOld">كلمة السر الحالية<input id="pwOld" type="password" autocomplete="current-password" dir="ltr"></label>
+    <label class="f" for="pwNew">الجديدة<input id="pwNew" type="password" autocomplete="new-password" dir="ltr"></label>
+    <label class="f" for="pwNew2">الجديدة تاني<input id="pwNew2" type="password" autocomplete="new-password" dir="ltr"></label></div>
+    <div id="formErr" class="banner bad" hidden></div>
+    <div class="foot"><button class="btn gold" type="submit" id="sheetOk">غيّرها</button><button class="btn" type="button" id="sheetCancel">إلغاء</button></div></form></div>`;
+  const f=document.getElementById("pwForm"),err=document.getElementById("formErr"),close=()=>{root.innerHTML="";};
+  document.getElementById("sheetCancel").onclick=close;
+  document.getElementById("sb").addEventListener("click",e=>{if(e.target.id==="sb")close();});
+  setTimeout(()=>document.getElementById("pwOld").focus(),30);
+  f.addEventListener("submit",async e=>{e.preventDefault();err.hidden=true;
+    const o=f.pwOld.value,n=f.pwNew.value;const bad=m=>{err.textContent=m;err.hidden=false;};
+    if(o!==PW)return bad("كلمة السر الحالية غلط.");
+    if(n.length<4)return bad("الجديدة لازم تكون 4 حروف أو أرقام على الأقل.");
+    if(n!==f.pwNew2.value)return bad("الكلمتين الجداد مش زي بعض.");
+    const ok=document.getElementById("sheetOk");ok.disabled=true;ok.textContent="لحظة…";
+    try{await api("pw_set",{old:o,pw:n});}catch(x){ok.disabled=false;ok.textContent="غيّرها";return bad(x.code==="offline"?"مفيش نت — لازم نت عشان تغيّرها.":(x.message||"ما اتغيّرتش"));}
+    PW=n;VSALT=crypto.getRandomValues(new Uint8Array(16));VKEY=await deriveKey(n,VSALT);await persist();
+    close();toast("اتغيّرت كلمة السر ✓");
+  });
 }
 function pill(st){return `<span class="pill p-${st}">${STATUS[st]}</span>`;}
 
@@ -401,7 +526,8 @@ function homeView(){
         <div class="list">${week.length?week.map(i=>{const c=find(D.clients,i.clientId);return `<div class="row"><button class="linkish" data-client="${c.id}" type="button"><b>${esc(c.name)}</b><small>${weekday(i.dueDate)} ${dmh(i.dueDate)} · <bdi class="u">${esc(unitText(c))}</bdi> · قسط ${i.index}</small></button><span class="amt">${money(left(i))}</span>${waRemindBtn(c,i)}</div>`;}).join(""):`<div class="empty">مفيش أقساط مستحقة في المدة دي</div>`}</div></div>
       ${prom.length?`<div class="panel"><div class="ph"><h2>وعود السداد</h2></div><div class="list">${prom.map(p=>`<div class="row"><button class="linkish" data-client="${p.c.id}" type="button"><b>${esc(p.c.name)}</b><small>وعد يوم ${dmh(p.n.promiseDate)}${p.n.promiseAmount?` بـ ${money(p.n.promiseAmount)}`:""} · ${esc(p.n.text||"")}</small></button><span class="pill ${p.st==="broken"?"p-late":"p-soon"}">${PROMISE[p.st]}</span></div>`).join("")}</div></div>`:""}
     </div>
-  </div>`;
+  </div>
+  <div style="display:flex;gap:10px;justify-content:center;margin:22px 0 6px;flex-wrap:wrap"><button class="btn small" data-act="chpw" type="button">🔑 غيّر كلمة السر</button><button class="btn small" data-act="lock" type="button">🔒 اقفل دلوقتي</button></div>`;
 }
 function pendingRow(p){
   const c=find(D.clients,p.clientId);const ch=p.chequeId&&find(D.cheques,p.chequeId);
@@ -560,7 +686,7 @@ function openClient(id){tab="clients";currentClient=id;document.querySelectorAll
 function bindCommon(){
   document.querySelectorAll("[data-client]").forEach(el=>{el.addEventListener("click",()=>openClient(el.dataset.client));el.addEventListener("keydown",e=>{if(e.key==="Enter")openClient(el.dataset.client);});});
   document.querySelectorAll("[data-act]").forEach(el=>el.addEventListener("click",()=>{const a=el.dataset.act;const c=currentClient&&find(D.clients,currentClient);
-    if(a==="reload")load(true);else if(a==="connect")connect();else if(a==="unlink"){CFG=null;LS.del("cfg");LS.del("base");D=null;render();}else if(a==="back"){currentClient=null;render();}else if(a==="pay")payForm(c);else if(a==="follow")followForm(c);else if(a==="cheque")chequeForm(c);
+    if(a==="reload")load(true);else if(a==="connect")connect();else if(a==="unlink"){CFG=null;LS.del("cfg");LS.del("base");LS.del("vault");LS.del("pwSet");PW=null;VKEY=null;V={base:null,outbox:[],mine:[]};outbox=[];D=null;locked=true;render();}else if(a==="lock")lockNow();else if(a==="relock"){lockMsg="";boot();}else if(a==="chpw")changePwForm();else if(a==="back"){currentClient=null;render();}else if(a==="pay")payForm(c);else if(a==="follow")followForm(c);else if(a==="cheque")chequeForm(c);
     else if(a==="mprev"||a==="mnext"){let [y,m]=monthKey.split("-").map(Number);m+=a==="mnext"?1:-1;if(m<1){m=12;y--;}if(m>12){m=1;y++;}monthKey=`${y}-${String(m).padStart(2,"0")}`;render();}
     else if(a==="mnow"){monthKey=null;render();}}));
   document.querySelectorAll("[data-chq]").forEach(el=>el.addEventListener("click",()=>{const ch=find(D.cheques,el.dataset.id);if(ch)chequeStatusForm(ch,el.dataset.chq);}));
@@ -573,18 +699,23 @@ function bindCommon(){
 }
 document.getElementById("tabs").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(b)setTab(b.dataset.tab);});
 document.getElementById("refreshBtn").addEventListener("click",()=>load(true));
-window.addEventListener("online",()=>load());
+window.addEventListener("online",()=>{if(!locked)load();});
 document.addEventListener("keydown",e=>{
   if((e.ctrlKey||e.metaKey)&&(e.code==="KeyF")){e.preventDefault();if(D){if(tab!=="clients"||currentClient){tab="clients";currentClient=null;setTab("clients");}const s=document.getElementById("clientSearch");if(s)s.focus();}}
   if(e.key==="Escape"&&document.getElementById("sheetRoot").innerHTML){document.getElementById("sheetRoot").innerHTML="";}
   if(e.key==="F5"&&!e.ctrlKey){e.preventDefault();load();}
 });
-document.addEventListener("visibilitychange",()=>{if(!document.hidden&&D&&!busy)load();});
-setInterval(()=>{if(!document.hidden&&!busy&&!document.getElementById("sheetRoot").innerHTML)load();},90000);
+document.getElementById("lockBtn").addEventListener("click",()=>lockNow());
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden){hiddenAt=Date.now();return;}
+  if(!locked&&hiddenAt&&Date.now()-hiddenAt>LOCK_AFTER_MIN*60000){hiddenAt=0;lockNow();return;}
+  hiddenAt=0;if(!locked&&D&&!busy)load();});
+window.addEventListener("pageshow",e=>{if(e.persisted&&!locked)lockNow();});
+setInterval(()=>{if(!locked&&!document.hidden&&!busy&&!document.getElementById("sheetRoot").innerHTML)load();},90000);
 /* one-tap setup: a link ending in #c=<code> links this phone and the hash is never sent anywhere */
 (function(){const m=/[#&]c=([^&]+)/.exec(location.hash||"");if(m){const cfg=parseCode(decodeURIComponent(m[1]));if(cfg){CFG=cfg;LS.set("cfg",cfg);}try{history.replaceState(null,"",location.pathname);}catch(e){}}})();
 if("serviceWorker" in navigator){window.addEventListener("load",()=>{navigator.serviceWorker.register("sw.js").catch(()=>{});});}
-load();
+boot();
 </script>
 </body>
 </html>
