@@ -11290,7 +11290,7 @@ autoBackup = async function () { };       // النسخة الأصلية على 
 extBackupNow = async function () { return false; };
 mobileExport = async function () { return false; };
 
-const MOB_VER = '2026-10-14a';
+const MOB_VER = '2026-10-16a';
 const MOB = {
   loaded: false, base: null, baseAt: '', outbox: [], cfg: null,
   refState: null, refPayIds: null, good: null,
@@ -11607,7 +11607,9 @@ function viewSync() {
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
       <button class="btn navy" onclick="mobSync(true)">زامن دلوقتي</button>
       <button class="btn" onclick="UI.view='setup';render()">تغيير الربط</button>
-      <button class="btn" onclick="mobResetToLaptop()">اعرض نسخة اللاب زي ما هي</button></div>
+      <button class="btn" onclick="mobResetToLaptop()">اعرض نسخة اللاب زي ما هي</button>
+      <button class="btn" onclick="plSettings()">🔒 كلمة سر الموبايل</button>
+      <button class="btn" onclick="plLockNow()">قفل دلوقتي</button></div>
   </div>
   <div class="card" style="margin-top:12px"><div class="card-h"><div class="card-t">حركات من الموبايل في الطريق للاب (${MOB.outbox.length})</div></div>
     <div class="tbl-wrap"><table><thead><tr><th>الطرف</th><th>الحساب</th><th>الحركة</th><th>المبلغ</th><th>التاريخ</th><th>الحالة</th></tr></thead>
@@ -11739,6 +11741,7 @@ function mobBanner() {
 const _render = render;
 render = function () {
   if (!MOB.loaded) { MOB.ready.then(() => render()); return; }
+  if (locked && MOB.base) { $('#view').innerHTML = ''; return; }      // مقفول — مفيش أرقام تترسم
   if (!MOB.base && UI.view !== 'setup') UI.view = 'setup';
   if (MOB.base && !MOB.refState) mobCaptureRef();
   _render.apply(this, arguments);
@@ -11763,6 +11766,106 @@ new MutationObserver(() => {
 ['#modalRoot', '#ctxRoot'].forEach(s => {
   const el = document.querySelector(s);
   if (el) new MutationObserver(() => { mobHideDenied(el); if (s === '#modalRoot') mobCards(el); }).observe(el, { childList: true, subtree: true });
+});
+/* ================= كلمة سر الموبايل =================
+   كلمة سر خاصة بالموبايل (مش بتاعة اللاب) — بتتطلب كل ما الموقع يتفتح، وكل ما ترجعله بعد دقيقتين برة،
+   وقبلها مفيش أي رقم بيترسم على الشاشة. متخزنة على التليفون بس (مش بتتبعت لجوجل ولا للاب)،
+   ومتشفّرة (PBKDF2) — يعني حتى اللي يفتح ملفات التليفون مايقدرش يعرفها. */
+const PL = { rec: null, ok: false, hiddenAt: 0, AWAY: 2 * 60 * 1000 };
+PL.ready = MOB.ready.then(async () => { try { PL.rec = await IDB.get('plock'); } catch (e) { PL.rec = null; } });
+async function plHash(pass, salt, iter) {
+  const enc = new TextEncoder();
+  const k = await crypto.subtle.importKey('raw', enc.encode(String(pass)), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode(salt), iterations: iter }, k, 256);
+  return Array.from(new Uint8Array(bits), b => b.toString(16).padStart(2, '0')).join('');
+}
+async function plMake(pass) {
+  const salt = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+  const iter = 150000;
+  return { salt, iter, hash: await plHash(pass, salt, iter), at: new Date().toISOString() };
+}
+/* على الموبايل: الشاشة مقفولة لحد ما كلمة سر الموبايل تتكتب (كلمة سر اللاب مالهاش دعوة هنا) */
+isLockSet = function () { return !PL.ok; };
+lockNow = function () { if (!PL.rec) return openPassSetup(); PL.ok = false; locked = true; showLockScreen(); };
+function plBox(title, sub, body) {
+  $('#view').innerHTML = '';
+  $('#lockRoot').innerHTML = `<div class="lock"><div class="lock-box">
+    <img src="${LOGO}" alt="شعار الشركة"><h2>${title}</h2><p>${sub}</p>${body}
+    <div class="lock-err" id="lockErr"></div></div></div>`;
+  const el = $('#lockRoot input'); if (el) setTimeout(() => el.focus(), 80);
+  $('#lockRoot').querySelectorAll('input').forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') { const b = $('#lockRoot .btn.navy'); b && b.click(); } }));
+}
+showLockScreen = async function () {
+  await PL.ready;
+  if (!MOB.base) { plOpen(); return; }                         // لسه مش متربط — مفيش بيانات تتقفل، شاشة الربط تظهر
+  if (!PL.rec) return plBox('اعمل كلمة سر للموبايل', 'كلمة سر خاصة بالموبايل — غير كلمة سر البرنامج على اللاب.<br>هتتطلب كل ما تفتح الحسابات من هنا.', `
+    <input id="plNew" type="password" placeholder="كلمة السر (4 حروف أو أرقام على الأقل)" autocomplete="new-password">
+    <input id="plNew2" type="password" placeholder="اكتبها تاني للتأكيد" autocomplete="new-password" style="margin-top:8px">
+    <button class="btn navy" style="width:100%;justify-content:center;margin-top:10px" onclick="plSetFirst()">حفظ وفتح</button>`);
+  plBox('شركة الطنطاوي', 'اكتب كلمة سر الموبايل عشان تفتح الحسابات', `
+    <input id="lockPass" type="password" placeholder="كلمة السر" autocomplete="current-password">
+    <button class="btn navy" style="width:100%;justify-content:center;margin-top:8px" onclick="tryUnlock()">فتح</button>
+    <a href="javascript:void 0" onclick="plForgot()" style="display:block;margin-top:14px;font-size:12.5px;color:var(--mut)">نسيت كلمة السر؟</a>`);
+};
+function plOpen() {
+  PL.ok = true; locked = false; $('#lockRoot').innerHTML = '';
+  PL.hiddenAt = 0;
+  try { render(); } catch (e) { logErr('mobUnlock', e.message); }
+}
+async function plSetFirst() {
+  const a = $('#plNew').value, b = $('#plNew2').value;
+  if (a.length < 4) { $('#lockErr').textContent = 'كلمة السر لازم 4 حروف أو أرقام على الأقل'; return; }
+  if (a !== b) { $('#lockErr').textContent = 'التأكيد مش زي كلمة السر'; $('#plNew2').value = ''; return; }
+  try { PL.rec = await plMake(a); await IDB.set('plock', PL.rec); }
+  catch (e) { $('#lockErr').textContent = 'مقدرتش أحفظها على التليفون: ' + e.message; return; }
+  plOpen(); toast('كلمة سر الموبايل اتحفظت ✓', 'ok');
+}
+tryUnlock = async function () {
+  const el = $('#lockPass'); if (!el) return;
+  const v = el.value;
+  let good = false;
+  try { good = !!PL.rec && (await plHash(v, PL.rec.salt, PL.rec.iter)) === PL.rec.hash; } catch (e) { logErr('mobUnlock', e.message); }
+  if (!good) { $('#lockErr').textContent = 'كلمة السر غلط'; el.value = ''; el.focus(); return; }
+  plOpen();
+};
+/* تغيير كلمة سر الموبايل (من «المزامنة» أو «قفل الشاشة») */
+openPassSetup = function () {
+  modal(PL.rec ? 'تغيير كلمة سر الموبايل' : 'كلمة سر الموبايل', `
+    <div class="note">دي كلمة سر الموبايل بس — كلمة سر البرنامج على اللاب زي ما هي. متخزنة على التليفون ده بس.</div>
+    ${PL.rec ? '<div class="f"><label>كلمة السر الحالية *</label><input id="pOld" type="password" autocomplete="current-password"></div>' : ''}
+    <div class="f"><label>كلمة السر الجديدة *</label><input id="pNew" type="password" autocomplete="new-password"></div>
+    <div class="f"><label>تأكيدها *</label><input id="pNew2" type="password" autocomplete="new-password"></div>`,
+    `<button class="btn navy" onclick="plChange()">حفظ</button><button class="btn" onclick="closeModal()">إلغاء</button>`);
+};
+async function plChange() {
+  if (PL.rec && (await plHash(sval('pOld'), PL.rec.salt, PL.rec.iter)) !== PL.rec.hash) return toast('كلمة السر الحالية غلط', 'err');
+  const a = sval('pNew'), b = sval('pNew2');
+  if (a.length < 4) return toast('كلمة السر لازم 4 حروف أو أرقام على الأقل', 'err');
+  if (a !== b) return toast('التأكيد مش زي كلمة السر', 'err');
+  PL.rec = await plMake(a); await IDB.set('plock', PL.rec);
+  closeModal(); toast('كلمة سر الموبايل اتغيرت ✓', 'ok');
+}
+function plSettings() { openPassSetup(); }
+function plLockNow() { lockNow(); }
+/* نسيت كلمة السر: نمسح نسخة الحسابات اللي على التليفون بس (اللاب مالوش دعوة)، وتتربط تاني من الأيقونة أو الرابط */
+function plForgot() {
+  const unsent = MOB.outbox.filter(e => e.sentRev < e.rev).length;
+  plBox('نسيت كلمة السر؟', `مفيش طريقة نعرفها — بس الحسابات كلها محفوظة على اللاب.<br>
+    هنمسح نسخة الحسابات اللي على التليفون ده، وبعدين افتح الموقع من الأيقونة أو رابط الربط تاني وهيتربط ويطلب كلمة سر جديدة.
+    ${unsent ? `<br><b style="color:var(--red)">⚠ فيه ${unsent} حركة اتسجلت هنا ولسه ما وصلتش اللاب — هتضيع لو مسحت.</b>` : ''}`, `
+    <input id="plWipe" placeholder="اكتب: امسح" style="letter-spacing:0">
+    <button class="btn danger" style="width:100%;justify-content:center;margin-top:8px" onclick="plWipe()">امسح نسخة التليفون</button>
+    <a href="javascript:void 0" onclick="showLockScreen()" style="display:block;margin-top:14px;font-size:12.5px;color:var(--mut)">رجوع</a>`);
+}
+async function plWipe() {
+  if (($('#plWipe').value || '').trim() !== 'امسح') { $('#lockErr').textContent = 'اكتب كلمة «امسح» الأول'; return; }
+  for (const k of ['base', 'baseAt', 'outbox', 'cfg', 'plock', 'lastPull']) { try { await IDB.set(k, null); } catch (e) { } }
+  location.reload();
+}
+/* بعد دقيقتين برة الموقع (التليفون اتقفل أو فتحت حاجة تانية) بيطلب كلمة السر تاني */
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { if (PL.ok) PL.hiddenAt = Date.now(); return; }
+  if (PL.ok && PL.rec && PL.hiddenAt && Date.now() - PL.hiddenAt > PL.AWAY) { PL.ok = false; locked = true; showLockScreen(); }
 });
 MOB.ready.then(() => {
   mobPaint();
