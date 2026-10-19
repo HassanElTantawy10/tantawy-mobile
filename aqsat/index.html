@@ -163,6 +163,35 @@ label.f{display:flex;flex-direction:column;gap:5px;font-weight:700;font-size:13.
   .brand b{font-size:17px}
   .brand small{display:none}
 }
+
+/* الوحدات والأبراج */
+.ufilters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.ulegend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin:4px 0 2px}
+.ulegend i{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;border:1px solid var(--line)}
+.ulegend i.u-available{background:var(--ok-bg);border-color:var(--ok)}
+.ulegend i.u-sold{background:var(--surface-2)}
+.ufloor+.ufloor{margin-top:12px}
+.ufloor h3{margin:0 0 7px;font-size:14px;color:var(--navy)}
+:root[data-theme="dark"] .ufloor h3{color:var(--ink)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .ufloor h3{color:var(--ink)}}
+.ugrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px}
+.utile{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:1px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);min-width:0;min-height:74px}
+.utile b{font-size:17px;line-height:1.25}
+.utile small{color:var(--muted);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.utile .uwho{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.utile.u-available{background:var(--ok-bg);border-color:var(--ok)}
+.utile.u-available .uwho{color:var(--ok)}
+.utile.u-sold{background:var(--surface-2)}
+.utile.u-sold .uwho{color:var(--ink)}
+.utile.u-reserved{background:var(--soon-bg);border-color:var(--soon)}
+.utile.u-reserved .uwho{color:var(--soon)}
+.utile:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.utile:hover{border-color:var(--gold)}
+.ubar{height:6px;background:var(--surface-2);border-radius:4px;overflow:hidden;min-width:60px;margin-top:4px}
+.ubar>i{display:block;height:100%;background:var(--gold)}
+.ufacts{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+.ufacts b{direction:rtl!important;font-size:15px!important}
+@media (max-width:520px){.ugrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 
 </head>
@@ -189,7 +218,7 @@ label.f{display:flex;flex-direction:column;gap:5px;font-weight:700;font-size:13.
     <button type="button" data-tab="clients">العملاء</button>
     <button type="button" data-tab="month">أقساط الشهر</button>
     <button type="button" data-tab="cheques">الشيكات</button>
-    <button type="button" data-tab="promises">الوعود</button>
+    <button type="button" data-tab="units">الوحدات</button>
   </div>
 </nav>
 
@@ -236,7 +265,7 @@ function migrateLegacy(){ // النسخة الأولى كانت بتحفظ من 
   if(Array.isArray(m)&&!V.mine.length)V.mine=m;
   LS.del("base");LS.del("outbox");LS.del("mine");
 }
-let CFG = LS.get("cfg"), D = null, liveAt = "", pending = [], outbox = [], tab = "home", currentClient = null, monthKey = null, loadErr = null, busy = false, lastOk = LS.get("lastOk") || "";
+let backTo = null, CFG = LS.get("cfg"), D = null, liveAt = "", pending = [], outbox = [], tab = "home", currentClient = null, monthKey = null, loadErr = null, busy = false, lastOk = LS.get("lastOk") || "";
 
 /* ---------- house helpers (from the company standard) ---------- */
 function safeEvalFormula(expr){const a="٠١٢٣٤٥٦٧٨٩";let s=String(expr).replace(/[٠-٩]/g,d=>a.indexOf(d));s=s.replace(/,/g,"").replace(/[^0-9+\-*/(). ]/g,"");let i=0;const peek=()=>s[i];const skip=()=>{while(s[i]===" ")i++;};function E(){skip();let v=T();skip();while(peek()==="+"||peek()==="-"){const op=s[i++];const r=T();v=op==="+"?v+r:v-r;skip();}return v;}function T(){skip();let v=F();skip();while(peek()==="*"||peek()==="/"){const op=s[i++];const r=F();v=op==="*"?v*r:(r===0?0:v/r);skip();}return v;}function F(){skip();if(peek()==="+"){i++;return F();}if(peek()==="-"){i++;return -F();}if(peek()==="("){i++;const v=E();skip();if(peek()===")")i++;return v;}const st=i;while(i<s.length&&/[0-9.]/.test(s[i]))i++;const n=parseFloat(s.slice(st,i));return isNaN(n)?0:n;}try{const r=E();return isFinite(r)?r:0;}catch(e){return 0;}}
@@ -379,7 +408,7 @@ function render(){
   if(!CFG)showChrome(false);
   if(!D){m.innerHTML=errorView();bindCommon();return;}
   if(loadErr&&loadErr.code==="offline"&&!document.getElementById("offlineNote")){}
-  const v={home:homeView,clients:clientsView,month:monthView,cheques:chequesView,promises:promisesView}[tab]();
+  const v={home:homeView,clients:clientsView,month:monthView,cheques:chequesView,units:unitsView}[tab]();
   m.innerHTML=(loadErr&&loadErr.code==="offline"?`<div class="banner warn" id="offlineNote">مفيش نت — ده آخر اللي اتحمّل. اللي هتسجله هيتبعت أول ما النت يرجع.</div>`:"")+v; bindCommon();
 }
 function errorView(){
@@ -548,7 +577,7 @@ function clientsView(){
 }
 function clientDetail(c){
   const t=clientTotals(c),is=insts(c.id),dp=downParts(c),chs=(D.cheques||[]).filter(x=>x.clientId===c.id),fu=(c.followups||[]).slice().reverse(),pd=pending.filter(p=>p.clientId===c.id);
-  return `<button class="btn small" data-act="back" type="button">→ كل العملاء</button><div class="sep"></div>
+  return `<button class="btn small" data-act="back" type="button">${backTo==="units"?"→ الوحدات":"→ كل العملاء"}</button><div class="sep"></div>
   <div class="panel"><div class="pb">
     <div class="client-head"><div><h2>${esc(c.name)}</h2><div class="muted"><bdi class="u">${esc(unitText(c))}</bdi> · <span dir="ltr">${esc(c.phone||"—")}</span></div></div>
       <div class="acts"><button class="btn gold" data-act="pay" type="button">＋ تسجيل دفعة</button><button class="btn" data-act="follow" type="button">متابعة / وعد</button><button class="btn" data-act="cheque" type="button">شيك جديد</button>${c.phone&&t.late.length?`<a class="btn" href="${waLink(c)}" target="_blank" rel="noopener">واتساب بالمتأخرات</a>`:""}${c.phone&&nextOpen(c.id)?`<a class="btn wa" href="${waLink(c,reminderMessage(c,nextOpen(c.id)))}" target="_blank" rel="noopener">تذكير واتساب بالقسط الجاي</a>`:""}</div></div>
@@ -588,12 +617,79 @@ function chequesView(){
   return `<div class="panel"><div class="ph"><h2>تحت التحصيل</h2><span class="note">${countAr(pc.length,"شيك","شيكين","شيكات","شيك")} · ${money(pc.reduce((s,c)=>s+(+c.amount||0),0))} ج</span></div><div class="list">${pc.length?pc.map(row).join(""):`<div class="empty">مفيش شيكات تحت التحصيل. تقدر تضيف شيك من صفحة العميل.</div>`}</div></div>
   ${done.length?`<div class="sep"></div><div class="panel"><div class="ph"><h2>آخر الشيكات اللي اتقفلت</h2></div><div class="list">${done.map(ch=>`<div class="row"><div class="grow"><b>${esc(chequeLine(ch,true))}</b></div><span class="pill ${ch.status==="bounced"?"p-late":"p-paid"}">${CHEQUE[ch.status]} ${dmh(ch.clearedDate||ch.bouncedDate)}</span></div>`).join("")}</div></div>`:""}`;
 }
-function promisesView(){
-  const t=todayISO();const all=[];for(const c of D.clients||[])for(const n of c.followups||[]){const st=promiseStatus(c,n);if(st)all.push({c,n,st});}
-  const grp=(title,list)=>list.length?`<div class="panel"><div class="ph"><h2>${title}</h2></div><div class="list">${list.map(p=>`<div class="row"><button class="linkish" data-client="${p.c.id}" type="button"><b>${esc(p.c.name)} — <bdi class="u">${esc(unitText(p.c))}</bdi></b><small>وعد يوم ${dmh(p.n.promiseDate)}${p.n.promiseAmount?` بـ ${money(p.n.promiseAmount)}`:""} · ${esc(p.n.text||"")}</small></button><span class="pill ${p.st==="kept"?"p-paid":p.st==="broken"?"p-late":"p-soon"}">${PROMISE[p.st]}</span></div>`).join("")}</div></div><div class="sep"></div>`:"";
-  const by=s=>all.filter(p=>p.st===s).sort((a,b)=>a.n.promiseDate.localeCompare(b.n.promiseDate));
-  const out=grp("ميعادها النهارده",by("today"))+grp("اتخلفت",by("broken").filter(p=>daysBetween(p.n.promiseDate,t)<=60).reverse())+grp("جاية",by("open"))+grp("اتنفذت (آخر 30 يوم)",by("kept").filter(p=>daysBetween(p.n.promiseDate,t)<=30).reverse());
-  return out||`<div class="panel"><div class="empty">مفيش وعود سداد. سجّل وعد من صفحة العميل ← «متابعة / وعد».</div></div>`;
+/* ---------- الوحدات والأبراج (١٧ أكتوبر — مكان «الوعود») ---------- */
+let unitScroll = 0, unitFilter = "all", unitTower = "all", unitQuery = "";
+const FLOORS = ["الأرضي","الأول","الثاني","الثالث","الرابع","الخامس","السادس","السابع","الثامن","التاسع","العاشر","الحادي عشر","الثاني عشر"];
+function floorName(f){const s=String(f||"").trim();if(!s)return"";return norm(s)===norm("الأرضي")?"الأرضي":s;}
+function floorRank(f){const s=floorName(f);if(!s)return 999;const k=FLOORS.findIndex(x=>norm(x)===norm(s));if(k>-1)return k;const m=s.match(/\d+/);return 500+(m?+m[0]:0);}
+function unitClient(u){return (D.clients||[]).find(c=>c.unitId===u.id)||null;}
+function unitState(u){if(unitClient(u))return"sold";const s=String(u.status||"").toLowerCase();return s==="sold"?"sold":s==="reserved"?"reserved":"available";}
+const USTATE = {available:"متاحة",sold:"مباعة",reserved:"محجوزة"};
+const areaTxt = a => (+a||0)?`${money(a)} م²`:"";
+function towerStats(us){const n={all:us.length,available:0,sold:0,reserved:0,area:0,soldArea:0,value:0};for(const u of us){const s=unitState(u);n[s]++;n.area+=+u.area||0;if(s==="sold"){n.soldArea+=+u.area||0;const c=unitClient(u);n.value+=c?(+c.total||0):0;}}return n;}
+function unitsOf(tid){return (D.units||[]).filter(u=>u.towerId===tid);}
+function unitTile(u){
+  const st=unitState(u),c=unitClient(u);
+  const sub=[u.type,areaTxt(u.area)].filter(Boolean).join(" · ");
+  return `<button type="button" class="utile u-${st}" data-unit="${u.id}" aria-label="وحدة ${esc(u.number)} — ${USTATE[st]}${c?" — "+esc(c.name):""}">
+    <b><bdi class="u">${esc(u.number)}</bdi></b><small>${esc(sub)}</small><span class="uwho">${c?esc(c.name):USTATE[st]}</span></button>`;
+}
+function unitsView(){
+  const towers=(D.towers||[]).slice().sort((a,b)=>String(a.name).localeCompare(String(b.name),"en",{numeric:true}));
+  if(unitTower!=="all"&&!find(D.towers,unitTower))unitTower="all";
+  const q=norm(unitQuery).replace(/\s/g,"");
+  const match=u=>{if(unitFilter!=="all"&&unitState(u)!==unitFilter)return false;if(!q)return true;const c=unitClient(u);return norm([u.number,u.type,floorName(u.floor),u.view,c?c.name:""].join(" ")).replace(/\s/g,"").includes(q);};
+  /* ملخص: كل برج لوحده والإجمالي تحت */
+  let all={all:0,available:0,sold:0,reserved:0,area:0,soldArea:0,value:0};
+  const sumRows=towers.map(t=>{const s=towerStats(unitsOf(t.id));for(const k in all)all[k]+=s[k];const pc=s.all?Math.round(100*s.sold/s.all):0;
+    return `<tr class="click" data-utower="${t.id}" tabindex="0"><td><b>${esc(t.name)}</b></td><td class="n">${s.all}</td><td class="n" style="color:var(--ok);font-weight:800">${s.available}</td><td class="n">${s.sold}</td><td class="n hide-sm">${money(s.value)}</td><td><div class="ubar" title="${pc}% مباع"><i style="width:${pc}%"></i></div><small class="muted">${pc}%</small></td></tr>`;}).join("");
+  const allPc=all.all?Math.round(100*all.sold/all.all):0;
+  const summary=`<div class="panel scroll"><div class="ph"><h2>كل برج لوحده</h2><span class="note">دوس على البرج تشوف وحداته</span></div>
+    <table><thead><tr><th>البرج</th><th class="n">الوحدات</th><th class="n">متاحة</th><th class="n">مباعة</th><th class="n hide-sm">قيمة المبيعات</th><th>اتباع</th></tr></thead>
+    <tbody>${sumRows}<tr class="total"><td>الإجمالي لكل الأبراج</td><td class="n">${all.all}</td><td class="n">${all.available}</td><td class="n">${all.sold}</td><td class="n hide-sm">${money(all.value)}</td><td>${allPc}%</td></tr></tbody></table></div>`;
+  const kpis=`<div class="grid kpis">
+    <div class="kpi"><span>كل الوحدات</span><b>${all.all}</b><small>${countAr(towers.length,"برج","برجين","أبراج","برج")}${all.area?` · ${money(all.area)} م²`:""}</small></div>
+    <div class="kpi ok"><span>متاحة للبيع</span><b>${all.available}</b><small>${all.area?money(all.area-all.soldArea)+" م²":""}</small></div>
+    <div class="kpi"><span>مباعة</span><b>${all.sold}</b><small>${allPc}% من الوحدات${all.reserved?` · ${all.reserved} محجوزة`:""}</small></div>
+    <div class="kpi"><span>قيمة المبيعات</span><b class="money">${money(all.value)}</b><small>سعر البيع في عقود العملاء</small></div></div>`;
+  const fBtn=(k,t)=>`<button type="button" class="btn small ${unitFilter===k?"navy":""}" data-ufilter="${k}" aria-pressed="${unitFilter===k}">${t}</button>`;
+  const tBtn=(id,t)=>`<button type="button" class="btn small ${unitTower===id?"gold":""}" data-utower="${id}" aria-pressed="${unitTower===id}">${esc(t)}</button>`;
+  const bar=`<div class="search"><input id="unitSearch" type="search" placeholder="🔎 رقم الوحدة أو اسم العميل" value="${esc(unitQuery)}" autocomplete="off"></div>
+    <div class="ufilters">${tBtn("all","كل الأبراج")}${towers.map(t=>tBtn(t.id,t.name)).join("")}</div>
+    <div class="ufilters">${fBtn("all","الكل")}${fBtn("available","المتاحة بس")}${fBtn("sold","المباعة بس")}</div>`;
+  const shown=towers.filter(t=>unitTower==="all"||t.id===unitTower);
+  const panels=shown.map(t=>{
+    const us=unitsOf(t.id),s=towerStats(us),list=us.filter(match);
+    if(!list.length&&(q||unitFilter!=="all"))return "";
+    const fl={};for(const u of list){const f=floorName(u.floor)||"دور مش متسجل";(fl[f]=fl[f]||[]).push(u);}
+    const floors=Object.keys(fl).sort((a,b)=>floorRank(a==="دور مش متسجل"?"":a)-floorRank(b==="دور مش متسجل"?"":b)||a.localeCompare(b,"ar"));
+    const body=floors.map(f=>`<div class="ufloor"><h3>${f==="دور مش متسجل"?f:"الدور "+esc(f)}<span class="note"> · ${countAr(fl[f].length,"وحدة","وحدتين","وحدات","وحدة")}</span></h3><div class="ugrid">${fl[f].sort((a,b)=>String(a.number).localeCompare(String(b.number),"en",{numeric:true})).map(unitTile).join("")}</div></div>`).join("");
+    const pc=s.all?Math.round(100*s.sold/s.all):0;
+    return `<div class="sep"></div><div class="panel"><div class="ph"><h2>برج ${esc(t.name)}</h2>
+      <span class="pill p-paid">${s.available} متاحة</span><span class="pill p-future">${s.sold} مباعة</span>${s.reserved?`<span class="pill p-soon">${s.reserved} محجوزة</span>`:""}<span class="note">من ${countAr(s.all,"وحدة","وحدتين","وحدات","وحدة")} · ${pc}% اتباع</span></div>
+      <div class="pb">${body||`<div class="empty">مفيش وحدات مسجلة في البرج ده</div>`}</div></div>`;
+  }).join("");
+  const legend=`<div class="ulegend"><span><i class="u-available"></i> متاحة</span><span><i class="u-sold"></i> مباعة — مكتوب عليها اسم العميل، دوس تفتح حسابه</span></div>`;
+  return kpis+`<div class="sep"></div>`+summary+`<div class="sep"></div>`+bar+legend+(panels||`<div class="sep"></div><div class="panel"><div class="empty">مفيش وحدات بالبحث ده</div></div>`);
+}
+function unitSheet(u){
+  const t=find(D.towers,u.towerId),st=unitState(u);
+  const row=(k,v)=>v===null||v===undefined||v===""?"":`<div><span>${k}</span><b>${v}</b></div>`;
+  const root=document.getElementById("sheetRoot");
+  root.innerHTML=`<div class="sheet-back" id="sb"><div class="sheet" role="dialog" aria-label="تفاصيل الوحدة"><h3>وحدة <bdi class="u">${esc(u.number)}</bdi> — برج ${esc(t?t.name:"")}</h3>
+    <div class="sub"><span class="pill ${st==="available"?"p-paid":"p-soon"}">${USTATE[st]}</span></div>
+    <div class="facts ufacts">${row("النوع",esc(u.type||""))}${row("الدور",esc(floorName(u.floor)||"—"))}${row("المساحة",areaTxt(u.area)||"—")}${row("التشطيب",esc(u.finishing||"—"))}${row("الإطلالة",esc(u.view||"—"))}</div>
+    <div class="foot"><button class="btn" type="button" id="sheetCancel">قفل</button></div></div></div>`;
+  const close=()=>{root.innerHTML="";};
+  document.getElementById("sheetCancel").onclick=close;
+  document.getElementById("sb").addEventListener("click",e=>{if(e.target.id==="sb")close();});
+}
+function bindUnits(){
+  document.querySelectorAll("[data-ufilter]").forEach(el=>el.addEventListener("click",()=>{unitFilter=el.dataset.ufilter;render();}));
+  document.querySelectorAll("[data-utower]").forEach(el=>{const go=()=>{unitTower=el.dataset.utower;render();if(el.tagName==="TR"){const s=document.getElementById("unitSearch");if(s)s.scrollIntoView({block:"start"});}};el.addEventListener("click",go);el.addEventListener("keydown",e=>{if(e.key==="Enter")go();});});
+  document.querySelectorAll("[data-unit]").forEach(el=>el.addEventListener("click",()=>{const u=find(D.units,el.dataset.unit);if(!u)return;const c=unitClient(u);if(c){const y=window.scrollY;openClient(c.id);backTo="units";unitScroll=y;render();}else unitSheet(u);}));
+  const s=document.getElementById("unitSearch");
+  if(s){s.addEventListener("input",()=>{unitQuery=s.value;const pos=s.selectionStart;render();const n=document.getElementById("unitSearch");n.focus();try{n.setSelectionRange(pos,pos);}catch(e){}});}
 }
 
 /* ---------- forms (bottom sheets) ---------- */
@@ -681,12 +777,12 @@ function chequeStatusForm(ch,st){
 
 /* ---------- events ---------- */
 function toast(msg){const r=document.getElementById("toastRoot");r.innerHTML=`<div class="toast" role="status">${esc(msg)}</div>`;clearTimeout(toast.t);toast.t=setTimeout(()=>{r.innerHTML="";},3800);}
-function setTab(t){tab=t;if(t!=="clients")currentClient=null;document.querySelectorAll("#tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab===t?"page":"false"));render();window.scrollTo(0,0);}
+function setTab(t){tab=t;backTo=null;if(t!=="clients")currentClient=null;document.querySelectorAll("#tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab===t?"page":"false"));render();window.scrollTo(0,0);}
 function openClient(id){tab="clients";currentClient=id;document.querySelectorAll("#tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab==="clients"?"page":"false"));render();window.scrollTo(0,0);}
 function bindCommon(){
   document.querySelectorAll("[data-client]").forEach(el=>{el.addEventListener("click",()=>openClient(el.dataset.client));el.addEventListener("keydown",e=>{if(e.key==="Enter")openClient(el.dataset.client);});});
   document.querySelectorAll("[data-act]").forEach(el=>el.addEventListener("click",()=>{const a=el.dataset.act;const c=currentClient&&find(D.clients,currentClient);
-    if(a==="reload")load(true);else if(a==="connect")connect();else if(a==="unlink"){CFG=null;LS.del("cfg");LS.del("base");LS.del("vault");LS.del("pwSet");PW=null;VKEY=null;V={base:null,outbox:[],mine:[]};outbox=[];D=null;locked=true;render();}else if(a==="lock")lockNow();else if(a==="relock"){lockMsg="";boot();}else if(a==="chpw")changePwForm();else if(a==="back"){currentClient=null;render();}else if(a==="pay")payForm(c);else if(a==="follow")followForm(c);else if(a==="cheque")chequeForm(c);
+    if(a==="reload")load(true);else if(a==="connect")connect();else if(a==="unlink"){CFG=null;LS.del("cfg");LS.del("base");LS.del("vault");LS.del("pwSet");PW=null;VKEY=null;V={base:null,outbox:[],mine:[]};outbox=[];D=null;locked=true;render();}else if(a==="lock")lockNow();else if(a==="relock"){lockMsg="";boot();}else if(a==="chpw")changePwForm();else if(a==="back"){currentClient=null;if(backTo){const b=backTo;backTo=null;setTab(b);if(b==="units")window.scrollTo(0,unitScroll);}else render();}else if(a==="pay")payForm(c);else if(a==="follow")followForm(c);else if(a==="cheque")chequeForm(c);
     else if(a==="mprev"||a==="mnext"){let [y,m]=monthKey.split("-").map(Number);m+=a==="mnext"?1:-1;if(m<1){m=12;y--;}if(m>12){m=1;y++;}monthKey=`${y}-${String(m).padStart(2,"0")}`;render();}
     else if(a==="mnow"){monthKey=null;render();}}));
   document.querySelectorAll("[data-chq]").forEach(el=>el.addEventListener("click",()=>{const ch=find(D.cheques,el.dataset.id);if(ch)chequeStatusForm(ch,el.dataset.chq);}));
@@ -694,6 +790,7 @@ function bindCommon(){
   const dd=document.getElementById("dueDaysIn");
   if(dd){const go=()=>{const v=String(dd.value).replace(/[٠-٩]/g,d=>"٠١٢٣٤٥٦٧٨٩".indexOf(d)).trim();if(!v)return;if(!setDueDays(v))toast("اكتب عدد أيام من 1 لـ 366");};
     dd.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();go();}});dd.addEventListener("change",go);}
+  bindUnits();
   const s=document.getElementById("clientSearch");
   if(s){s.addEventListener("input",()=>{clientQuery=s.value;const pos=s.selectionStart;render();const n=document.getElementById("clientSearch");n.focus();try{n.setSelectionRange(pos,pos);}catch(e){}});}
 }
