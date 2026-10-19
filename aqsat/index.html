@@ -185,6 +185,8 @@ label.f{display:flex;flex-direction:column;gap:5px;font-weight:700;font-size:13.
 .utile.u-sold .uwho{color:var(--ink)}
 .utile.u-reserved{background:var(--soon-bg);border-color:var(--soon)}
 .utile.u-reserved .uwho{color:var(--soon)}
+.utile.udup{border-style:dashed;opacity:.92}
+.utile .dupmark{font-size:11.5px;font-weight:700;color:var(--muted)}
 .utile:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 .utile:hover{border-color:var(--gold)}
 .ubar{height:6px;background:var(--surface-2);border-radius:4px;overflow:hidden;min-width:60px;margin-top:4px}
@@ -628,9 +630,16 @@ const USTATE = {available:"متاحة",sold:"مباعة",reserved:"محجوزة"
 const areaTxt = a => (+a||0)?`${money(a)} م²`:"";
 function towerStats(us){const n={all:us.length,available:0,sold:0,reserved:0,area:0,soldArea:0,value:0};for(const u of us){const s=unitState(u);n[s]++;n.area+=+u.area||0;if(s==="sold"){n.soldArea+=+u.area||0;const c=unitClient(u);n.value+=c?(+c.total||0):0;}}return n;}
 function unitsOf(tid){return (D.units||[]).filter(u=>u.towerId===tid);}
+/* الدوبلكس: وحدة واحدة على دورين — مكتوب في بياناتها «دوبلكس مع الأول». بتتعرض في دورها، وجزءها العلوي بيبان في الدور التاني من غير ما يتعد مرتين */
+function duplexUpper(u){const m=String([u.view,u.type,u.finishing].join(" ")).match(/دوبلكس\s+مع\s+(?:الدور\s+)?(\S+)/);return m?floorName(m[1]):"";}
+function duplexTile(u){
+  const st=unitState(u),c=unitClient(u),lo=floorName(u.floor);
+  return `<button type="button" class="utile udup u-${st}" data-unit="${u.id}" aria-label="الدور العلوي من دوبلكس ${esc(u.number)}">
+    <b><bdi class="u">${esc(u.number)}</bdi> <span class="dupmark">↥ دوبلكس</span></b><small>الجزء العلوي من وحدة ${esc(lo||"")}</small><span class="uwho">${c?esc(c.name):USTATE[st]}</span></button>`;
+}
 function unitTile(u){
   const st=unitState(u),c=unitClient(u);
-  const sub=[u.type,areaTxt(u.area)].filter(Boolean).join(" · ");
+  const sub=[duplexUpper(u)?"دوبلكس مع "+duplexUpper(u):u.type,areaTxt(u.area)].filter(Boolean).join(" · ");
   return `<button type="button" class="utile u-${st}" data-unit="${u.id}" aria-label="وحدة ${esc(u.number)} — ${USTATE[st]}${c?" — "+esc(c.name):""}">
     <b><bdi class="u">${esc(u.number)}</bdi></b><small>${esc(sub)}</small><span class="uwho">${c?esc(c.name):USTATE[st]}</span></button>`;
 }
@@ -661,9 +670,9 @@ function unitsView(){
   const panels=shown.map(t=>{
     const us=unitsOf(t.id),s=towerStats(us),list=us.filter(match);
     if(!list.length&&(q||unitFilter!=="all"))return "";
-    const fl={};for(const u of list){const f=floorName(u.floor)||"دور مش متسجل";(fl[f]=fl[f]||[]).push(u);}
+    const fl={},up={};for(const u of list){const f=floorName(u.floor)||"دور مش متسجل";(fl[f]=fl[f]||[]).push(u);const hi=duplexUpper(u);if(hi&&hi!==f){(up[hi]=up[hi]||[]).push(u);fl[hi]=fl[hi]||[];}}
     const floors=Object.keys(fl).sort((a,b)=>floorRank(a==="دور مش متسجل"?"":a)-floorRank(b==="دور مش متسجل"?"":b)||a.localeCompare(b,"ar"));
-    const body=floors.map(f=>`<div class="ufloor"><h3>${f==="دور مش متسجل"?f:"الدور "+esc(f)}<span class="note"> · ${countAr(fl[f].length,"وحدة","وحدتين","وحدات","وحدة")}</span></h3><div class="ugrid">${fl[f].sort((a,b)=>String(a.number).localeCompare(String(b.number),"en",{numeric:true})).map(unitTile).join("")}</div></div>`).join("");
+    const body=floors.map(f=>`<div class="ufloor"><h3>${f==="دور مش متسجل"?f:"الدور "+esc(f)}<span class="note"> · ${countAr(fl[f].length,"وحدة","وحدتين","وحدات","وحدة")}${up[f]?` + الدور العلوي من ${countAr(up[f].length,"دوبلكس","دوبلكسين","دوبلكسات","دوبلكس")}`:""}</span></h3><div class="ugrid">${fl[f].sort((a,b)=>String(a.number).localeCompare(String(b.number),"en",{numeric:true})).map(unitTile).join("")}${(up[f]||[]).sort((a,b)=>String(a.number).localeCompare(String(b.number),"en",{numeric:true})).map(duplexTile).join("")}</div></div>`).join("");
     const pc=s.all?Math.round(100*s.sold/s.all):0;
     return `<div class="sep"></div><div class="panel"><div class="ph"><h2>برج ${esc(t.name)}</h2>
       <span class="pill p-paid">${s.available} متاحة</span><span class="pill p-future">${s.sold} مباعة</span>${s.reserved?`<span class="pill p-soon">${s.reserved} محجوزة</span>`:""}<span class="note">من ${countAr(s.all,"وحدة","وحدتين","وحدات","وحدة")} · ${pc}% اتباع</span></div>
