@@ -632,14 +632,16 @@ function towerStats(us){const n={all:us.length,available:0,sold:0,reserved:0,are
 function unitsOf(tid){return (D.units||[]).filter(u=>u.towerId===tid);}
 /* الدوبلكس: وحدة واحدة على دورين — مكتوب في بياناتها «دوبلكس مع الأول». بتتعرض في دورها، وجزءها العلوي بيبان في الدور التاني من غير ما يتعد مرتين */
 function duplexUpper(u){const m=String([u.view,u.type,u.finishing].join(" ")).match(/دوبلكس\s+مع\s+(?:الدور\s+)?(\S+)/);return m?floorName(m[1]):"";}
+/* رقم الجزء العلوي: لو متسجل في البيانات (upperNumber) بناخده، وإلا رقم الدور + رقم الوحدة (7 في الأرضي ← 107 في الأول) — زي R6 بالظبط */
+function duplexNo(u){if(u.upperNumber)return String(u.upperNumber);const hi=duplexUpper(u);if(!hi)return"";const r=floorRank(hi),n=String(u.number||"");return r>0&&r<100&&/^\d+$/.test(n)?String(r*100+(+n)):"";}
 function duplexTile(u){
   const st=unitState(u),c=unitClient(u),lo=floorName(u.floor);
-  return `<button type="button" class="utile udup u-${st}" data-unit="${u.id}" aria-label="الدور العلوي من دوبلكس ${esc(u.number)}">
-    <b><bdi class="u">${esc(u.number)}</bdi> <span class="dupmark">↥ دوبلكس</span></b><small>الجزء العلوي من وحدة ${esc(lo||"")}</small><span class="uwho">${c?esc(c.name):USTATE[st]}</span></button>`;
+  return `<button type="button" class="utile udup u-${st}" data-unit="${u.id}" aria-label="${esc(duplexNo(u))} الدور العلوي من دوبلكس ${esc(u.number)}">
+    <b><bdi class="u">${esc(duplexNo(u)||u.number)}</bdi> <span class="dupmark">↥ دوبلكس</span></b><small>العلوي من ${esc(u.number)} — وحدة واحدة</small><span class="uwho">${c?esc(c.name):USTATE[st]}</span></button>`;
 }
 function unitTile(u){
   const st=unitState(u),c=unitClient(u);
-  const sub=[duplexUpper(u)?"دوبلكس مع "+duplexUpper(u):u.type,areaTxt(u.area)].filter(Boolean).join(" · ");
+  const sub=[duplexUpper(u)?"دوبلكس مع "+(duplexNo(u)||duplexUpper(u)):u.type,areaTxt(u.area)].filter(Boolean).join(" · ");
   return `<button type="button" class="utile u-${st}" data-unit="${u.id}" aria-label="وحدة ${esc(u.number)} — ${USTATE[st]}${c?" — "+esc(c.name):""}">
     <b><bdi class="u">${esc(u.number)}</bdi></b><small>${esc(sub)}</small><span class="uwho">${c?esc(c.name):USTATE[st]}</span></button>`;
 }
@@ -647,7 +649,7 @@ function unitsView(){
   const towers=(D.towers||[]).slice().sort((a,b)=>String(a.name).localeCompare(String(b.name),"en",{numeric:true}));
   if(unitTower!=="all"&&!find(D.towers,unitTower))unitTower="all";
   const q=norm(unitQuery).replace(/\s/g,"");
-  const match=u=>{if(unitFilter!=="all"&&unitState(u)!==unitFilter)return false;if(!q)return true;const c=unitClient(u);return norm([u.number,u.type,floorName(u.floor),u.view,c?c.name:""].join(" ")).replace(/\s/g,"").includes(q);};
+  const match=u=>{if(unitFilter!=="all"&&unitState(u)!==unitFilter)return false;if(!q)return true;const c=unitClient(u);return norm([u.number,duplexNo(u),u.type,floorName(u.floor),u.view,c?c.name:""].join(" ")).replace(/\s/g,"").includes(q);};
   /* ملخص: كل برج لوحده والإجمالي تحت */
   let all={all:0,available:0,sold:0,reserved:0,area:0,soldArea:0,value:0};
   const sumRows=towers.map(t=>{const s=towerStats(unitsOf(t.id));for(const k in all)all[k]+=s[k];const pc=s.all?Math.round(100*s.sold/s.all):0;
@@ -672,7 +674,7 @@ function unitsView(){
     if(!list.length&&(q||unitFilter!=="all"))return "";
     const fl={},up={};for(const u of list){const f=floorName(u.floor)||"دور مش متسجل";(fl[f]=fl[f]||[]).push(u);const hi=duplexUpper(u);if(hi&&hi!==f){(up[hi]=up[hi]||[]).push(u);fl[hi]=fl[hi]||[];}}
     const floors=Object.keys(fl).sort((a,b)=>floorRank(a==="دور مش متسجل"?"":a)-floorRank(b==="دور مش متسجل"?"":b)||a.localeCompare(b,"ar"));
-    const body=floors.map(f=>`<div class="ufloor"><h3>${f==="دور مش متسجل"?f:"الدور "+esc(f)}<span class="note"> · ${countAr(fl[f].length,"وحدة","وحدتين","وحدات","وحدة")}${up[f]?` + الدور العلوي من ${countAr(up[f].length,"دوبلكس","دوبلكسين","دوبلكسات","دوبلكس")}`:""}</span></h3><div class="ugrid">${fl[f].sort((a,b)=>String(a.number).localeCompare(String(b.number),"en",{numeric:true})).map(unitTile).join("")}${(up[f]||[]).sort((a,b)=>String(a.number).localeCompare(String(b.number),"en",{numeric:true})).map(duplexTile).join("")}</div></div>`).join("");
+    const body=floors.map(f=>`<div class="ufloor"><h3>${f==="دور مش متسجل"?f:"الدور "+esc(f)}<span class="note"> · ${countAr(fl[f].length,"وحدة","وحدتين","وحدات","وحدة")}${up[f]?` + الدور العلوي من ${countAr(up[f].length,"دوبلكس","دوبلكسين","دوبلكسات","دوبلكس")}`:""}</span></h3><div class="ugrid">${fl[f].map(u=>({k:String(u.number),h:unitTile(u)})).concat((up[f]||[]).map(u=>({k:duplexNo(u)||String(u.number),h:duplexTile(u)}))).sort((a,b)=>a.k.localeCompare(b.k,"en",{numeric:true})).map(x=>x.h).join("")}</div></div>`).join("");
     const pc=s.all?Math.round(100*s.sold/s.all):0;
     return `<div class="sep"></div><div class="panel"><div class="ph"><h2>برج ${esc(t.name)}</h2>
       <span class="pill p-paid">${s.available} متاحة</span><span class="pill p-future">${s.sold} مباعة</span>${s.reserved?`<span class="pill p-soon">${s.reserved} محجوزة</span>`:""}<span class="note">من ${countAr(s.all,"وحدة","وحدتين","وحدات","وحدة")} · ${pc}% اتباع</span></div>
