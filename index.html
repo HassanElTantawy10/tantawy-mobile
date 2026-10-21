@@ -6150,9 +6150,8 @@ function acShow(el) {
   try { sug = acSuggest(el); } catch (e) { logErr('acSuggest', e.message); }
   if (!sug || sug === el.value) return acHide();
   AC.el = el; AC.sug = sug;
-  const h = acHintEl(), typed = el.value, rest = sug.length > typed.length ? sug.slice(typed.length) : sug;
-  const same = acNorm(sug).startsWith(acNorm(typed)) && sug.length > typed.length;
-  h.innerHTML = `<kbd>Tab</kbd> ${same ? `<span class="t">${esc(typed)}</span><b>${esc(rest)}</b>` : `<b>${esc(sug)}</b>`}`;
+  const h = acHintEl();
+  h.innerHTML = `<kbd>Tab</kbd> <b>${esc(sug)}</b>`;   // الجملة كاملة — لو اتقسمت الكلمة الحروف العربي بتتفكك
   h.hidden = false;
   const r = el.getBoundingClientRect();
   h.style.top = Math.min(window.innerHeight - 34, r.bottom + 3) + 'px';
