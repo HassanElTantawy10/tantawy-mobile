@@ -313,6 +313,13 @@ tfoot tr.projgrand td{background:#FFFBEB;border-top:3px double var(--navy);font-
 @media print{tr.projhead td,tr.projsub td,tfoot tr.projgrand td{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 @keyframes flashrow{0%,45%{background:#FDE68A}100%{background:transparent}}
 tr.flashrow td{animation:flashrow 2.4s ease-out}
+#acHint{position:fixed;z-index:120;background:var(--slate);color:#E2E8F0;border-radius:8px;padding:4px 10px;font-size:12.5px;
+  box-shadow:0 6px 18px rgba(15,23,42,.28);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;direction:rtl;line-height:1.7}
+#acHint kbd{background:#334155;border-color:#475569;color:#fff;margin-inline-end:6px;font-size:10.5px}
+#acHint .t{opacity:.75}
+#acHint b{color:#F5D77A;font-weight:700}
+#acHint[hidden]{display:none}
+@media print{#acHint{display:none !important}}
 #printArea{display:none}
 /* وضع الطباعة: بنخفي البرنامج ونظهر الورقة بنفسنا — مش مستنيين المتصفح يفعّل ستايل الطباعة.
    ده اللي بيخلي حفظ PDF في نسخة الويندوز يطلع التقرير مش شاشة البرنامج. */
@@ -4708,7 +4715,7 @@ function viewBackup() {
     <div class="card-t" style="margin-bottom:8px">اختصارات لوحة المفاتيح</div>
     <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:#334155">
       <span><kbd>Ctrl</kbd>+<kbd>S</kbd> حفظ يدوي</span><span><kbd>Ctrl</kbd>+<kbd>Z</kbd> تراجع</span>
-      <span><kbd>Ctrl</kbd>+<kbd>D</kbd> تكرار الحركة المحددة</span><span><kbd>Ctrl</kbd>+<kbd>F</kbd> بحث سريع من أي مكان</span><span><kbd>Ctrl</kbd>+<kbd>P</kbd> كشف حساب</span><span><kbd>Ctrl</kbd>+<kbd>L</kbd> قفل</span><span><kbd>Enter</kbd> حفظ</span><span><kbd>F5</kbd> إعادة تشغيل الشاشة</span><span><kbd>Tab</kbd> ينقل للحقل اللي بعده</span><span><kbd>Esc</kbd> إغلاق النافذة</span>
+      <span><kbd>Ctrl</kbd>+<kbd>D</kbd> تكرار الحركة المحددة</span><span><kbd>Ctrl</kbd>+<kbd>F</kbd> بحث سريع من أي مكان</span><span><kbd>Ctrl</kbd>+<kbd>P</kbd> كشف حساب</span><span><kbd>Ctrl</kbd>+<kbd>L</kbd> قفل</span><span><kbd>Enter</kbd> حفظ</span><span><kbd>F5</kbd> إعادة تشغيل الشاشة</span><span><kbd>Tab</kbd> يكمّل الكلمة من كلامك (الاقتراح بيظهر تحت الخانة) — ومرة تانية ينقل للحقل اللي بعده</span><span><kbd>Esc</kbd> إغلاق النافذة</span>
     </div>
     <div class="hint-k" style="margin-top:8px">الاختصارات شغالة سواء الكيبورد عربي أو إنجليزي.</div>
     <div class="hint-k" style="margin-top:6px">في خانات الفلوس اكتب <kbd>=15000*3+2000</kbd> والبرنامج يحسبها. وفي التاريخ اكتب <kbd>01022026</kbd> يبقى 01-02-2026.</div>
@@ -6009,6 +6016,171 @@ function unitFix(el) {
 }
 document.addEventListener('keydown', e => { if ((e.key === 'Tab' || e.key === 'Enter') && isUnitInput(e.target)) unitFix(e.target); }, true);
 document.addEventListener('focusout', e => { if (isUnitInput(e.target)) unitFix(e.target); }, true);
+
+/* ================= التكملة بـ Tab في كل البرنامج (بيتعلّم من بياناتك) ================= */
+const AC = { stamp: -1, at: 0, seq: 1, g: {}, words: new Map() };
+const acNorm = s => toEnDigits(String(s == null ? '' : s)).replace(/[ً-ْـ]/g, '')
+  .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
+  .replace(/\s+/g, ' ').trim().toLowerCase();
+/* نوع الكلام حسب اسم الخانة في البيانات (ونوع القايمة اللي هي فيها) */
+function acKeyGroup(k, ctx) {
+  if (k === 'name') return ctx === 'parties' ? 'party' : ctx === 'accounts' ? 'acc' : ctx === 'labor' || ctx === 'workers' ? 'worker' : 'name';
+  if (k === 'desc') return ctx === 'expenses' ? 'edesc' : (ctx === 'income' || ctx === 'incomes') ? 'ndesc' : 'desc';
+  if (k === 'cat') return (ctx === 'income' || ctx === 'incomes') ? 'ncat' : 'cat';
+  return ({ loc: 'loc', proj: 'proj', project: 'proj', method: 'method', recv: 'recv', note: 'note', trade: 'trade',
+    role: 'role', holder: 'holder', client: 'client', floor: 'floor', floors: 'floor', extraRef: 'ref' })[k] || '';
+}
+function acBuild() {
+  const g = {}, words = new Map(); let seq = 0;
+  const add = (grp, v, pid) => {
+    v = String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
+    if (!grp || v.length < 2 || v.length > 140 || /^data:|^https?:/.test(v) || /^[\d\s.,\-\/:٠-٩]+$/.test(v)) return;
+    const m = g[grp] || (g[grp] = new Map()), k = acNorm(v);
+    const o = m.get(k) || { v, n: 0, last: 0, pids: new Set() };
+    o.n++; o.last = ++seq; o.v = v; if (pid) o.pids.add(pid); m.set(k, o);
+    v.split(/[\s،,/()\-–—«»"]+/).forEach(w => {
+      const wk = acNorm(w); if (wk.length < 3 || /^[\d.]+$/.test(wk)) return;
+      const x = words.get(wk) || { v: w, n: 0, last: 0 }; x.n++; x.last = seq; words.set(wk, x);
+    });
+  };
+  const walk = (o, ctx, pid, depth) => {
+    if (!o || depth > 6) return;
+    if (Array.isArray(o)) { o.forEach(x => walk(x, ctx, pid, depth + 1)); return; }
+    if (typeof o !== 'object') return;
+    const myPid = ctx === 'parties' ? o.id : pid;
+    Object.keys(o).forEach(k => {
+      const v = o[k];
+      if (typeof v === 'string') add(acKeyGroup(k, ctx), v, myPid);
+      else if (Array.isArray(v) && k === 'floors') v.forEach(x => add('floor', x, myPid));
+      else if (v && typeof v === 'object') walk(v, k, myPid, depth + 1);
+    });
+  };
+  try {
+    ['parties', 'expenses', 'labor', 'workers', 'custody', 'income', 'incomes', 'projects'].forEach(k => walk(DB[k], k, null, 0));
+    (typeof projectNames === 'function' ? projectNames() : []).forEach(p => add('proj', p));
+  } catch (e) { logErr('acBuild', e.message); }
+  AC.g = g; AC.words = words; AC.seq = seq || 1; AC.at = Date.now();
+  AC.stamp = typeof changeCount === 'number' ? changeCount : 0;
+}
+function acFresh() {
+  const cc = typeof changeCount === 'number' ? changeCount : 0;
+  if (cc !== AC.stamp || Date.now() - AC.at > 60000) acBuild();
+}
+/* كل خانة بتكمّل من أنهي نوع كلام (الأول هو الأهم). null = تكملة الكلمة بس. */
+const AC_FIELDS = [
+  [/^(iDesc|qiDesc|wkDesc|cyDesc|xDesc|g\d+n)$/, ['desc', 'edesc']],
+  [/^puDesc$/, ['desc']],
+  [/^eDesc$/, ['edesc', 'desc']],
+  [/^nDesc$/, ['ndesc', 'desc']],
+  [/^(iLoc|qiLoc)$/, ['loc']],
+  [/^(fTrade|btTrade)$/, ['trade']],
+  [/^wRole$/, ['role']],
+  [/^yRecv$/, ['recv']],
+  [/^cHolder$/, ['holder', 'worker', 'recv']],
+  [/^nClient$/, ['client']],
+  [/^(aFloors|bfFloor)$/, ['floor']],
+  [/^iExtraRef$/, ['ref']],
+  [/^eCat$/, ['cat']],
+  [/^nCat$/, ['ncat']],
+  [/^(fName|wkNewName|puNewName|wName|aName|qiNewAcc|tpName|prName)$/, null],
+  [/Note$|^bpN$/, ['note', 'desc']],
+  [/Proj(List)?$|^aProj$/, ['proj']],
+  [/Method$|^bmM$|^g\d+m$/, ['method']],
+];
+const AC_SKIP = /^(searchBox|dashQ|q|qsInput|tg[A-Z]\w*|waTxt|impPaste|rcPaste|fsWord|fPhone|wPhone|yCheque|sCheque|mgr|uw|srAmt|srUnit|lockPw\w*|g\d+[dqpay])$/;
+function acEligible(el) {
+  if (!el || !(el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') || el.readOnly || el.disabled) return false;
+  if (el.tagName === 'INPUT' && !/^(text|search|)$/.test(el.getAttribute('type') || '')) return false;
+  if (el.type === 'search' || el.hasAttribute('data-money') || el.hasAttribute('data-date')) return false;
+  if (/numeric|decimal|tel/.test(el.getAttribute('inputmode') || '')) return false;
+  if (typeof isUnitInput === 'function' && isUnitInput(el)) return false;          // الوحدة ليها تكملتها
+  if (AC_SKIP.test(el.id || '') || el.closest('#lockRoot,.lock,.ctx,.mbar')) return false;
+  if (/search|بحث|دور (على|في|بال)/.test((el.id || '') + ' ' + (el.placeholder || '')) && !el.closest('.modal')) return false;
+  return true;
+}
+function acGroups(el) {
+  const id = el.id || '';
+  for (const [re, grps] of AC_FIELDS) if (re.test(id)) return grps;
+  return null;   // خانة مش معروفة: الكلمة بس
+}
+function acSuggest(el) {
+  const val = el.value || '';
+  if (!val.trim() || el.selectionStart !== val.length || el.selectionEnd !== val.length) return null;
+  acFresh();
+  const q = acNorm(val), grps = acGroups(el);
+  const pid = (typeof UI !== 'undefined' && UI.pid) || null;
+  if (grps && q.length >= 2) {
+    let best = null;
+    const offer = (v, score) => {
+      const k = acNorm(v);
+      if (k.length <= q.length || !k.startsWith(q)) return;
+      if (!best || score > best.s || (score === best.s && v.length < best.v.length)) best = { v, s: score };
+    };
+    grps.forEach((grp, gi) => {
+      const m = AC.g[grp]; if (!m) return;
+      m.forEach(o => offer(o.v, Math.log2(1 + o.n) * 10 + 8 * o.last / AC.seq + (pid && o.pids.has(pid) ? 25 : 0) - gi * 30));
+    });
+    if (el.list && el.list.options) [...el.list.options].forEach((op, i) => offer(op.value, 60 - i * 0.5));   // القايمة بتاعة الخانة (زي اللي استلموا من الطرف ده)
+    if (best) return best.v;
+  }
+  const mw = val.match(/(\S+)$/);
+  if (!mw) return null;
+  const t = acNorm(mw[1]); if (t.length < 2) return null;
+  let bw = null;
+  AC.words.forEach((o, k) => {
+    if (k.length <= t.length || !k.startsWith(t)) return;
+    const sc = Math.log2(1 + o.n) * 10 + 5 * o.last / AC.seq;
+    if (!bw || sc > bw.s) bw = { v: o.v, s: sc };
+  });
+  return bw ? val.slice(0, val.length - mw[1].length) + bw.v : null;
+}
+function acHintEl() {
+  let h = document.getElementById('acHint');
+  if (!h) {
+    h = document.createElement('div'); h.id = 'acHint'; h.className = 'no-print'; h.hidden = true;
+    h.addEventListener('mousedown', e => { e.preventDefault(); const el = AC.el; if (el && AC.sug) acApply(el, AC.sug); });
+    document.body.appendChild(h);
+  }
+  return h;
+}
+function acHide() { const h = document.getElementById('acHint'); if (h) h.hidden = true; AC.sug = null; }
+function acShow(el) {
+  if (!acEligible(el) || el._acDone === el.value) return acHide();
+  let sug = null;
+  try { sug = acSuggest(el); } catch (e) { logErr('acSuggest', e.message); }
+  if (!sug || sug === el.value) return acHide();
+  AC.el = el; AC.sug = sug;
+  const h = acHintEl(), typed = el.value, rest = sug.length > typed.length ? sug.slice(typed.length) : sug;
+  const same = acNorm(sug).startsWith(acNorm(typed)) && sug.length > typed.length;
+  h.innerHTML = `<kbd>Tab</kbd> ${same ? `<span class="t">${esc(typed)}</span><b>${esc(rest)}</b>` : `<b>${esc(sug)}</b>`}`;
+  h.hidden = false;
+  const r = el.getBoundingClientRect();
+  h.style.top = Math.min(window.innerHeight - 34, r.bottom + 3) + 'px';
+  h.style.right = Math.max(6, window.innerWidth - r.right) + 'px';
+  h.style.maxWidth = Math.max(220, Math.min(560, r.right - 10)) + 'px';
+}
+function acApply(el, sug) {
+  el.value = sug; el._acDone = sug;
+  try { el.setSelectionRange(sug.length, sug.length); } catch (e) { }
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  acHide();
+}
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Tab' || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+  const el = e.target;
+  if (!acEligible(el) || el._acDone === el.value) return;      // Tab التانية = الخانة اللي بعدها
+  let sug = null;
+  try { sug = acSuggest(el); } catch (err) { logErr('acSuggest', err.message); }
+  if (!sug || sug === el.value) return;
+  e.preventDefault();
+  acApply(el, sug);
+}, true);
+document.addEventListener('input', e => { if (e.target && e.target._acDone !== undefined && e.target._acDone !== e.target.value) e.target._acDone = undefined; acShow(e.target); }, true);
+document.addEventListener('focusin', e => { if (acEligible(e.target)) acShow(e.target); else acHide(); }, true);
+document.addEventListener('focusout', () => setTimeout(() => { if (!document.activeElement || !acEligible(document.activeElement)) acHide(); }, 120), true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') acHide(); });
+window.addEventListener('scroll', () => { if (AC.sug && AC.el) acShow(AC.el); }, true);
+window.addEventListener('resize', acHide);
 
 /* ================= إدخال ذكي ================= */
 function wireInputs(root) {
