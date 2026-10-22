@@ -4449,7 +4449,7 @@ function viewTg() {
   return `
   <div class="topbar">
     <div><h1 class="page">التقرير اليومي على تليجرام</h1>
-      <p class="sub">كل يوم الساعة ${esc(t.time)} يوصلك ملخص بكل مشروع وكل طرف — ولو مفيش نت يستنى ويروح أول ما يرجع</p></div>
+      <p class="sub">كل يوم ${t.onOpen ? 'أول ما تفتح اللاب' : 'الساعة ' + esc(t.time)} يوصلك ملخص بكل مشروع وكل طرف — ولو مفيش نت يستنى ويروح أول ما يرجع</p></div>
     <div class="spacer"></div>
     ${ok ? `<button class="btn gold no-print" onclick="tgTest()">📤 ابعت تجربة دلوقتي</button>` : ''}
     <button class="btn navy no-print" onclick="tgSave()">حفظ الإعدادات</button>
@@ -4461,10 +4461,10 @@ function viewTg() {
   <div class="kpis">
     <div class="kpi ${t.on && ok ? 'emer' : 'gray'}"><div class="lbl">الحالة</div>
       <div class="val" style="font-size:19px">${t.on && ok ? 'شغّال ✓' : t.on ? 'ناقص إعداد' : 'متوقف'}</div></div>
-    <div class="kpi navy"><div class="lbl">ميعاد الإرسال</div><div class="val" style="font-size:19px">${esc(t.time)}</div></div>
+    <div class="kpi navy"><div class="lbl">ميعاد الإرسال</div><div class="val" style="font-size:19px">${t.onOpen ? 'أول ما اللاب يفتح' : esc(t.time)}</div></div>
     <div class="kpi ${t.lastSched ? 'emer' : 'gray'}"><div class="lbl">آخر تقرير مجدول</div>
       <div class="val" style="font-size:19px">${t.lastSched ? dsp(t.lastSched) : 'لسه'}</div>
-      <div class="hint">${t.lastSched === todayISO() ? 'تقرير النهاردة راح' : 'هيروح الساعة ' + esc(t.time)}</div></div>
+      <div class="hint">${t.lastSched === tgToday() ? 'تقرير النهاردة راح' : t.onOpen ? 'هيروح أول ما يلاقي نت' : 'هيروح الساعة ' + esc(t.time)}</div></div>
     <div class="kpi ${t.queue.length ? 'amber' : 'emer'}"><div class="lbl">مستني في الطابور</div>
       <div class="val">${t.queue.length}</div>
       <div class="hint">${t.queue.length ? 'هيروح أول ما النت يرجع' : 'مفيش حاجة متأخرة'}</div></div>
@@ -4487,7 +4487,10 @@ function viewTg() {
     </div>
     <div class="grid2">
       <div class="f"><label>ميعاد الإرسال</label><input id="tgTime" dir="ltr" value="${esc(t.time)}" placeholder="17:00">
-        <div class="hint-k">بالساعة والدقيقة، ٢٤ ساعة. يعني ٥ العصر = 17:00</div></div>
+        <div class="hint-k">بالساعة والدقيقة، ٢٤ ساعة. يعني ٥ العصر = 17:00</div>
+        <label style="display:flex;gap:8px;align-items:center;font-weight:600;padding-top:8px;cursor:pointer">
+          <input type="checkbox" id="tgOpenOn" style="width:auto" ${t.onOpen ? 'checked' : ''}>
+          ابعته أول ما أفتح اللاب ويوصل نت (مرة واحدة في اليوم — من غير ما يستنى الميعاد)</label></div>
       <div class="f"><label>المرفقات</label>
         <label style="display:flex;gap:8px;align-items:center;font-weight:600;padding-top:8px;cursor:pointer">
           <input type="checkbox" id="tgPdfOn" style="width:auto" ${t.withPdf ? 'checked' : ''}>
@@ -4497,7 +4500,7 @@ function viewTg() {
       <button class="btn" onclick="tgCheck()">تأكد إن البوت شغال</button>
       <button class="btn" onclick="tgPreview()">شوف شكل التقرير</button>
       ${t.queue.length ? `<button class="btn gold" onclick="tgFlushNow()">جرّب تبعت المتأخر (${t.queue.length})</button>` : ''}
-      ${t.lastSched === todayISO() ? `<button class="btn" onclick="tgRearm()">ابعت تقرير النهاردة تاني في الميعاد</button>` : ''}
+      ${t.lastSched === tgToday() ? `<button class="btn" onclick="tgRearm()">ابعت تقرير النهاردة تاني في الميعاد</button>` : ''}
     </div>
   </div>
 
@@ -4528,13 +4531,14 @@ function tgSave() {
   t.token = sval('tgToken').trim();
   t.chat = sval('tgChat').trim();
   t.withPdf = !!($('#tgPdfOn') && $('#tgPdfOn').checked);
+  t.onOpen = !!($('#tgOpenOn') && $('#tgOpenOn').checked);
   const tm = sval('tgTime').trim();
   if (/^\d{1,2}:\d{2}$/.test(tm)) {
     const p = tm.split(':');
     t.time = String(Math.min(23, +p[0])).padStart(2, '0') + ':' + String(Math.min(59, +p[1])).padStart(2, '0');
   }
   save(); render();
-  toast(t.on ? 'اتحفظ — التقرير هيروح كل يوم ' + t.time + ' ✓' : 'اتحفظ — التقرير متوقف', 'ok');
+  toast(t.on ? 'اتحفظ — التقرير هيروح كل يوم ' + (t.onOpen ? 'أول ما اللاب يفتح ويوصل نت' : t.time) + ' ✓' : 'اتحفظ — التقرير متوقف', 'ok');
 }
 async function tgCheck() {
   const tok = sval('tgToken').trim();
@@ -10345,6 +10349,8 @@ function byeScreen(msg) {
    البرنامج بيبعت من على الجهاز مباشرة. لو مفيش نت، التقرير بيتحفظ في طابور
    وبيروح أول ما النت يرجع — ومكتوب عليه إنه تقرير يوم كذا. */
 const TG_DEF_TOKEN = '8261063399:AAGHK0Tb-O6bFEL9I641kY_eTU-qUXJm0rU';
+/* تاريخ النهاردة بتوقيت الجهاز (todayISO بتوقيت جرينتش — عندنا اليوم كان بيبدأ 3 الفجر) */
+function tgToday() { const n = new Date(); return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0'); }
 function tgCfg() {
   DB.settings.tg = DB.settings.tg || {};
   const t = DB.settings.tg;
@@ -10455,7 +10461,7 @@ async function tgDeliver(text, forDate, withPdf) {
 /* تقرير يوم معيّن: يروح دلوقتي أو يستنى في الطابور */
 async function tgSendDay(forDate, manual) {
   const t = tgCfg();
-  const d = forDate || todayISO();
+  const d = forDate || tgToday();
   const text = tgReportText(d);
   if (!tgReady()) {
     if (manual) toast('اكمّل إعدادات التليجرام الأول', 'err');
@@ -10511,9 +10517,9 @@ async function tgTick() {
   await tgFlush();
   const now = new Date();
   const hhmm = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-  const today = todayISO();
+  const today = tgToday();
   if (t.lastSched === today) return;
-  if (hhmm >= (t.time || '17:00')) await tgSendDay(today, false);
+  if (t.onOpen || hhmm >= (t.time || '17:00')) await tgSendDay(today, false);
 }
 setInterval(() => { try { tgTick(); } catch (e) { logErr('tgTick', e.message); } }, 60000);
 setTimeout(() => { try { tgTick(); } catch (e) { } }, 12000);
@@ -10919,6 +10925,10 @@ function printCash() {
 function bumpChange() { changeCount++; }
 /* ================= تعديلات مستنية: بتتطبّق مرة واحدة أول ما البرنامج على اللاب يتفتح ================= */
 const PENDING_OPS = [
+  { id: 'tg-onopen-2026-10-23', label: 'التقرير اليومي', run() {
+    const t = tgCfg(); t.onOpen = true;
+    return 'هيتبعت كل يوم أول ما اللاب يفتح ويوصل نت';
+  } },
   { id: 'm2-2026-10-14', label: 'مسطحات المشاريع', run() {
     const done = [];
     [['R07', 600], ['R06', 1200], ['O4', 1200], ['O2', 1200]].forEach(([raw, area]) => {
