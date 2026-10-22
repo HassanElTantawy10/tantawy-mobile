@@ -320,6 +320,36 @@ tr.flashrow td{animation:flashrow 2.4s ease-out}
 #acHint b{color:#F5D77A;font-weight:700}
 #acHint[hidden]{display:none}
 @media print{#acHint{display:none !important}}
+/* صفحة الطرف على اللاب: الجزء اللي فوق ثابت والسكرول في الدفتر بس */
+.pin-name{display:none}
+@media (min-width:901px){
+  body.party-pin #view > .topbar{position:sticky;top:0;z-index:32;background:var(--bg);margin:-20px -24px 12px;padding:10px 24px;
+    box-shadow:0 1px 0 var(--line)}
+  body.party-pin.pin-scrolled #view > .topbar{box-shadow:0 4px 12px rgba(15,23,42,.10)}
+  body.party-pin.pin-scrolled .pin-name{display:inline-flex;align-items:center;gap:8px;font-size:15px;color:var(--navy);margin-inline-start:6px}
+  .pin-bal{font-size:12.5px;font-weight:700;color:var(--mut);background:#fff;border:1px solid var(--line);border-radius:20px;padding:1px 10px}
+  body.party-pin #view > .accs{position:sticky;top:var(--pinA,56px);z-index:31;background:var(--bg);display:flex;flex-wrap:nowrap;
+    overflow-x:auto;gap:10px;padding:4px 2px 10px;margin:0;scrollbar-width:thin}
+  body.party-pin #view > .accs > .acc{flex:0 0 235px;padding:8px 12px}
+  body.party-pin #view > .accs > .acc .an{font-size:13px;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  body.party-pin #view > .accs > .acc .am{margin-bottom:3px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  body.party-pin #view > .accs > .acc .row:not(.rrem){display:none}
+  body.party-pin #view > .accs > .acc .bar{margin-top:5px;height:4px}
+  body.party-pin.pin-scrolled #view > .accs{box-shadow:0 6px 10px -8px rgba(15,23,42,.25)}
+  body.party-pin .pin-cardh{position:sticky;top:var(--pinB,180px);z-index:30;background:#fff;border-radius:14px 14px 0 0;
+    flex-wrap:nowrap;overflow-x:auto;padding:8px 14px;gap:6px;scrollbar-width:thin}
+  body.party-pin .pin-cardh > *{flex:none}
+  body.party-pin .pin-cardh .btn.sm{padding:4px 9px;font-size:11.5px}
+  body.party-pin .pin-cardh .card-t{white-space:nowrap}
+  body.party-pin.pin-scrolled .pin-cardh{border-radius:0;box-shadow:0 1px 0 var(--line)}
+  body.party-pin .acc-sticky{top:var(--pinC,240px);z-index:29;padding:7px 18px !important;gap:18px !important}
+  body.party-pin .acc-sticky .mini-v{font-size:16px}
+  body.party-pin .acc-sticky .mini-l{font-size:11px}
+  body.party-pin .selbar{top:var(--pinC,240px);z-index:29}
+  body.party-pin .tbl-wrap.ldg{max-height:none;overflow:visible}
+  body.party-pin .tbl-wrap.ldg thead th{top:var(--pinD,300px);z-index:28}
+  body.party-pin #view .tbl-wrap.ldg tbody tr{scroll-margin-top:calc(var(--pinE,340px) + 8px);scroll-margin-bottom:12px}
+}
 #printArea{display:none}
 /* وضع الطباعة: بنخفي البرنامج ونظهر الورقة بنفسنا — مش مستنيين المتصفح يفعّل ستايل الطباعة.
    ده اللي بيخلي حفظ PDF في نسخة الويندوز يطلع التقرير مش شاشة البرنامج. */
@@ -2558,6 +2588,7 @@ function render() {
     let t = null;
     s.oninput = e => { UI.q = e.target.value; clearTimeout(t); t = setTimeout(rerenderList, 160); };
   }
+  try { pinParty(); } catch (e) { logErr('pinParty', e.message); }
   window._lastRenderKey = _key;
   if (_same) {
     try {
@@ -3142,7 +3173,7 @@ function viewParty() {
   let a = findAcc(p, UI.aid); if (!a) a = p.accounts.filter(x => !x.refOnly)[0] || p.accounts[0];
   return `
   <div class="topbar no-print">
-    <button class="btn ghost" onclick="go('${p.type}')">→ رجوع</button><div class="spacer"></div>
+    <button class="btn ghost" onclick="go('${p.type}')">→ رجوع</button><b class="pin-name">${esc(p.name)} <span class="pin-bal num">${b.txt} ${fmt(b.v)}</span></b><div class="spacer"></div>
     <button class="btn" onclick="openParty('${p.id}')">تعديل البيانات</button>
     <button class="btn" onclick="waStatement('${p.id}')">📱 واتساب</button>
     <button class="btn" onclick="openStatementPeriod('${p.id}')">كشف حساب</button>
@@ -3218,7 +3249,7 @@ function accCard(p, a, on) {
     <div class="row"><span>${p.type === 'contractor' ? 'الأعمال' : 'التوريدات'}</span><b class="num">${fmt(g)}</b>${a.mode === 'open' ? ' <span class="chip gray" style="font-size:10px">بالمدفوع</span>' : ''}</div>
     <div class="row"><span>الواصل</span><b class="num">${fmt(accPaid(a))}</b></div>
     ${accAdvPaid(a) > 0.5 ? `<div class="row"><span>سلفة</span><b class="num">${fmt(accAdvPaid(a))}</b></div>` : ''}
-    <div class="row"><span>الباقي</span><b class="num" style="color:${b.cls === 'amber' ? 'var(--amber)' : b.cls === 'blue' ? 'var(--blue)' : 'var(--emer)'}">${a.refOnly ? '—' : fmt(b.v)}</b></div>
+    <div class="row rrem"><span>الباقي</span><b class="num" style="color:${b.cls === 'amber' ? 'var(--amber)' : b.cls === 'blue' ? 'var(--blue)' : 'var(--emer)'}">${a.refOnly ? '—' : fmt(b.v)}</b></div>
     <div class="bar ${pct >= 99.5 ? (pct > 100.5 ? 'over' : 'done') : ''}"><i style="width:${Math.min(100, pct)}%"></i></div>
   </div>`;
 }
@@ -3259,6 +3290,50 @@ function quickLedgerPeriod(k) {
   render();
 }
 /* بينزل لآخر حركة أول ما الحساب يفتح — من غير ما تسكرول */
+/* ================= صفحة الطرف: الجزء اللي فوق ثابت والسكرول في الدفتر بس (اللاب) ================= */
+function pinOn() { return UI.view === 'party' && window.innerWidth > 900 && typeof MOB_VER === 'undefined'; }
+function pinParty() {
+  const body = document.body, v = $('#view');
+  if (!pinOn() || !v) { body.classList.remove('party-pin', 'pin-scrolled'); return; }
+  body.classList.add('party-pin');
+  const top = v.querySelector(':scope > .topbar'), accs = v.querySelector(':scope > .accs');
+  const card = [...v.querySelectorAll(':scope > .card')].pop();
+  const cardH = card && card.querySelector(':scope > .card-h');
+  const tot = card && card.querySelector('.acc-sticky');
+  const ldg = card && [...card.querySelectorAll('.tbl-wrap')].pop();
+  if (ldg) ldg.classList.add('ldg');
+  if (cardH) cardH.classList.add('pin-cardh');
+  /* كروت الحسابات: نرجّع مكان الصف لو كان متحرك يمين/شمال */
+  if (accs) {
+    if (window._pinStrip && window._pinStrip.pid === UI.pid) accs.scrollLeft = window._pinStrip.x;
+    const on = accs.querySelector('.acc.on');          // الحساب المفتوح لازم يبان في الصف
+    if (on) { const r = on.getBoundingClientRect(), sr = accs.getBoundingClientRect();
+      if (r.left < sr.left) accs.scrollLeft += r.left - sr.left - 12; else if (r.right > sr.right) accs.scrollLeft += r.right - sr.right + 12; }
+    accs.onscroll = () => { window._pinStrip = { pid: UI.pid, x: accs.scrollLeft }; };
+  }
+  pinMeasure();
+}
+function pinMeasure() {
+  const v = $('#view'); if (!v || !document.body.classList.contains('party-pin')) return;
+  const h = el => el ? el.getBoundingClientRect().height : 0;
+  const top = v.querySelector(':scope > .topbar'), accs = v.querySelector(':scope > .accs');
+  const card = [...v.querySelectorAll(':scope > .card')].pop();
+  const cardH = card && card.querySelector(':scope > .card-h'), tot = card && card.querySelector('.acc-sticky');
+  const th = card && card.querySelector('.ldg thead');
+  const A = Math.round(h(top)), B = A + Math.round(h(accs)), C = B + Math.round(h(cardH)), D = C + Math.round(h(tot)), E = D + Math.round(h(th));
+  const st = document.documentElement.style;
+  st.setProperty('--pinA', A + 'px'); st.setProperty('--pinB', B + 'px'); st.setProperty('--pinC', C + 'px');
+  st.setProperty('--pinD', D + 'px'); st.setProperty('--pinE', E + 'px');
+  pinScrolled();
+}
+function pinScrolled() {
+  if (!document.body.classList.contains('party-pin')) return;
+  const head = $('#view .party-head');
+  document.body.classList.toggle('pin-scrolled', !!head && head.getBoundingClientRect().bottom < 40);
+}
+window.addEventListener('scroll', pinScrolled, { passive: true });
+window.addEventListener('resize', () => { try { const was = document.body.classList.contains('party-pin'); if (was !== pinOn()) render(); else pinMeasure(); } catch (e) { } });
+
 function jumpLastSoon() { setTimeout(() => { try { jumpLast(); } catch (e) { } }, 70); }
 /* ينزل لآخر سطر في الدفتر */
 function jumpLast() {
