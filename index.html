@@ -6956,7 +6956,16 @@ function saveWork() {
   if (!amount) return toast('اكتب الإجمالي', 'err');
   if (lockGuard(date)) return;
   if (cid === '__new' && sval('wkNewName') && dupAsk('party|' + sval('wkNewName'), 'فيه اسم شبه <b>' + esc(sval('wkNewName')) + '</b> متسجل — يمكن تختاره من القايمة بدل ما تعمله جديد:', simParties(sval('wkNewName')), () => saveWork())) return;
+  /* الحساب المختار مشروعه غير المشروع المكتوب → حساب المشروع، أو نسأل */
+  let wkPm = null;
+  const wkP = cid && cid !== '__new' ? findParty(cid) : null, wkA = wkP ? findAcc(wkP, sval('wkAcc')) : null;
+  if (wkA) {
+    const wkKey = ['work', cid, wkA.id, proj, desc, amount].join('|'), pm0 = projMovePlan(wkP, wkA, null, proj);
+    wkPm = projMoveChoice(wkKey, pm0);
+    if (!wkPm) return projMoveAsk(wkP, wkA, pm0.proj, () => saveWork(), pm0.accs, wkKey);
+  }
   if (cid && cid !== '__new' && dupAsk('item|' + desc + '|' + amount, 'البند <b>' + esc(desc) + '</b> بنفس المبلغ متسجل قبل كده عند ' + esc(findParty(cid).name) + ':', simItems(findParty(cid), desc, amount), () => saveWork())) return;
+  window._pmChoice = null;
   snapshot();
   let p;
   if (cid === '__new') {
@@ -6969,6 +6978,8 @@ function saveWork() {
     p = findParty(cid);
   }
   let aid = sval('wkAcc');
+  if (wkPm && wkPm.kind === 'move') aid = wkPm.to.id;
+  else if (wkPm && wkPm.kind === 'create') aid = '__new';
   if (!aid || aid === '__new' || !findAcc(p, aid)) {
     const a = normalizeAcc({ name: 'أعمال ' + proj, project: proj, mode: 'items', items: [], payments: [] });
     p.accounts.push(a); aid = a.id;
@@ -7170,7 +7181,7 @@ function openItem(pid, aid, iid) {
     </div>
     <div class="grid2">
       <div class="f"><label>الإجمالي</label><input id="iAmount" class="money" data-money data-live="calcItem" value="${it ? fmtMoney(it.amount) : ''}" placeholder="بيتحسب تلقائي"></div>
-      <div class="f"><label>المشروع *</label><input id="iProj" list="projListI" value="${esc(it ? (it.proj || accProject(a) === UNASSIGNED ? (it.proj || '') : accProject(a)) : (accProject(a) === UNASSIGNED ? '' : accProject(a)))}" placeholder="R-06">
+      <div class="f"><label>المشروع *</label><input id="iProj" list="projListI" oninput="projHint()" onchange="projHint()" value="${esc(it ? (it.proj || accProject(a) === UNASSIGNED ? (it.proj || '') : accProject(a)) : (accProject(a) === UNASSIGNED ? '' : accProject(a)))}" placeholder="R-06">
         <datalist id="projListI">${projectNames().filter(n => n !== UNASSIGNED).map(n => `<option>${esc(n)}</option>`).join('')}</datalist>
         <div class="hint-k" id="projHint">البند مش هيتحسب في تكلفة أي مشروع لو الخانة دي فاضية.</div></div>
     </div>
@@ -7217,12 +7228,72 @@ function floorField(id, a, cur){
     <div class="hint-k">${fl.length ? 'أدوار الحساب: ' + esc(fl.join('، ')) : 'لسه محددتش أدوار للحساب — حددهم من «تعديل» الحساب أو اكتب الدور هنا.'}</div></div>`;
 }
 /* لو خانة المشروع فاضية والوصف بيقول مشروع — نقترحه بزرار، مش بنحطه لوحدنا */
+/* ================= البند في مشروع غير مشروع الحساب ================= */
+function projMoveOn() { return typeof MOB_VER === 'undefined'; }          // الموبايل زي الأول
+/* حسابات تانية عند نفس الطرف للمشروع ده (المفتوح قبل الخالص، واللي مشروعه هو بس قبل المجمّع) */
+function projTargetAccs(p, a, proj) {
+  const c = p.accounts.filter(x => x !== a && !x.refOnly && splitTokens(x.project).map(canonProject).indexOf(proj) > -1);
+  c.sort((x, y) => ((x.settled ? 1 : 0) - (y.settled ? 1 : 0)) || (splitTokens(x.project).length - splitTokens(y.project).length));
+  return c;
+}
+/* هيحصل إيه للبند ده: none / move (حساب واحد للمشروع) / pick (كذا حساب — يختار) / ask (مفيش — نسأل نعمله) */
+function projMovePlan(p, a, it, projIn) {
+  if (!projMoveOn()) return { kind: 'none' };
+  const proj = projIn ? canonProject(projIn) : '';
+  if (!proj || proj === UNASSIGNED) return { kind: 'none' };
+  const own = splitTokens(a.project).map(canonProject).filter(x => x && x !== UNASSIGNED);
+  if (!own.length || own.indexOf(proj) > -1) return { kind: 'none' };
+  if (it && num(it.cumTo)) return { kind: 'none' };                     // بند مستخلص — تراكمي الحساب
+  const c = projTargetAccs(p, a, proj), open = c.filter(x => !x.settled);
+  if (open.length === 1 || (!open.length && c.length === 1)) return { kind: 'move', to: open[0] || c[0], proj };
+  if (c.length) return { kind: 'pick', accs: open.length ? open : c, proj };
+  return { kind: 'ask', proj };
+}
+function projNewAccName(p, proj) { return (p.type === 'supplier' ? 'توريد ' : 'أعمال ') + proj; }
+/* اختيارك في السؤال بيتفتكر لنفس البند لحد ما يتحفظ (عشان لو جه بعده تنبيه التكرار مايسألش تاني) */
+function projMoveChoice(key, pm) {
+  if (pm.kind !== 'ask' && pm.kind !== 'pick') return pm;
+  const c = window._pmChoice && window._pmChoice.key === key ? window._pmChoice.v : '';
+  const to = c.indexOf('acc:') === 0 ? (pm.accs || []).find(x => 'acc:' + x.id === c) : null;
+  if (c === 'keep') return { kind: 'none' };
+  if (to) return { kind: 'move', to, proj: pm.proj };
+  if (c === 'create' && pm.kind === 'ask') return { kind: 'create', proj: pm.proj };
+  return null;
+}
+function projMoveAsk(p, a, proj, go, accs, key) {
+  window._pmGo = choice => { const r = $('#dupRoot'); if (r) r.innerHTML = ''; if (choice) { window._pmChoice = { key, v: choice }; go(); } };
+  let root = $('#dupRoot');
+  if (!root) { root = document.createElement('div'); root.id = 'dupRoot'; document.body.appendChild(root); }
+  const nm = projNewAccName(p, proj);
+  const many = accs && accs.length;
+  root.innerHTML = `<div class="ov" style="z-index:95;align-items:center" onclick="if(event.target===this)_pmGo(null)">
+    <div class="modal" style="max-width:520px;border-top:4px solid var(--gold)">
+      <div class="modal-h"><span class="t">البند ده في مشروع ${esc(proj)}</span></div>
+      <div class="modal-b"><div style="font-size:14px;line-height:1.9">
+        انت في حساب <b>${esc(a.name)}</b> (مشروع ${esc(accProject(a))})، والبند مكتوب في مشروع <b>${esc(proj)}</b>.<br>
+        ${many ? esc(p.name) + ' ليه ' + accs.length + ' حسابات لمشروع ' + esc(proj) + ' — تحطه في أنهي واحد؟'
+               : esc(p.name) + ' مالوش حساب لمشروع ' + esc(proj) + '. أعمل حساب <b>«' + esc(nm) + '»</b> وأحط فيه البند؟'}</div>
+        ${many ? '<div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">' + accs.map((x, i) => `<button class="btn${i ? '' : ' gold'}" ${i ? '' : 'id="pmNew"'} style="justify-content:flex-start" onclick="_pmGo('acc:${x.id}')">${esc(x.name)}${x.settled ? ' <span style="color:var(--mut)">(خالص)</span>' : ''}</button>`).join('') + '</div>' : ''}</div>
+      <div class="modal-f">
+        ${many ? '' : `<button class="btn gold" id="pmNew" onclick="_pmGo('create')">أيوه، اعمل «${esc(nm)}»</button>`}
+        <button class="btn" onclick="_pmGo('keep')">لا، سيبه في «${esc(a.name)}»</button>
+        <button class="btn ghost" onclick="_pmGo(null)">ارجع للبند</button>
+      </div></div></div>`;
+  setTimeout(() => { const b = $('#pmNew'); if (b) b.focus(); }, 30);
+  return true;
+}
 function projHint() {
   const el = $('#projHint'); if (!el) return;
   const c = window._itemCtx || {};
   const p = c.pid ? findParty(c.pid) : null, a = p && c.aid ? findAcc(p, c.aid) : null;
   if (!p || !a) return;
   const cur = sval('iProj');
+  if (cur) {
+    const it = c.iid ? a.items.find(x => x.id === c.iid) : null, pl = projMovePlan(p, a, it, cur);
+    if (pl.kind === 'move') { el.innerHTML = '↪ هيتسجل في حساب <b>' + esc(pl.to.name) + '</b> بتاع مشروع ' + esc(pl.proj) + ' عند ' + esc(p.name); return; }
+    if (pl.kind === 'pick') { el.innerHTML = '↪ ' + esc(p.name) + ' ليه ' + pl.accs.length + ' حسابات لمشروع <b>' + esc(pl.proj) + '</b> — لما تحفظ هيسألك تحطه في أنهي واحد'; return; }
+    if (pl.kind === 'ask') { el.innerHTML = '↪ ' + esc(p.name) + ' مالوش حساب لمشروع <b>' + esc(pl.proj) + '</b> — لما تحفظ هيسألك يعمله'; return; }
+  }
   const fake = { desc: sval('iDesc'), loc: sval('iLoc'), proj: '' };
   const g = itemProjSuggest(p, a, fake);
   if (cur || !g.proj) {
@@ -7282,8 +7353,21 @@ function saveItem(pid, aid, iid) {
   if (!amount) return toast('اكتب الإجمالي', 'err');
   if (lockGuard(dval('iDate'))) return;
   if (iid && lockGuard(a.items.find(x => x.id === iid).date)) return;
+  /* البند في مشروع غير مشروع الحساب: حساب المشروع ده عند نفس الطرف، أو نسأل نعمله */
+  const pmKey = ['item', pid, aid, iid || '', sval('iProj'), desc, amount].join('|');
+  const pm0 = projMovePlan(p, a, iid ? a.items.find(x => x.id === iid) : null, sval('iProj'));
+  const pm = projMoveChoice(pmKey, pm0);
+  if (!pm) return projMoveAsk(p, a, pm0.proj, () => saveItem(pid, aid, iid), pm0.accs, pmKey);
   if (!iid && dupAsk('item|' + desc + '|' + amount, 'البند <b>' + esc(desc) + '</b> بنفس المبلغ متسجل قبل كده عند ' + esc(p.name) + ':', simItems(p, desc, amount), () => saveItem(pid, aid, iid))) return;
+  window._pmChoice = null;
   snapshot();
+  let tgt = a;
+  if (pm.kind === 'move') tgt = pm.to;
+  else if (pm.kind === 'create') {
+    tgt = normalizeAcc({ name: projNewAccName(p, pm.proj), project: pm.proj, mode: 'items', items: [], payments: [] });
+    p.accounts.push(tgt);
+    logAction('account', 'حساب جديد «' + tgt.name + '» لـ ' + p.name + ' (البند كان مكتوب في مشروع ' + pm.proj + ' من حساب ' + a.name + ')');
+  }
   const projIn = sval('iProj');
   const projCan = projIn ? canonProject(projIn) : '';
   const data = {
@@ -7305,9 +7389,16 @@ function saveItem(pid, aid, iid) {
       toast('الحساب اتربط بمشروع ' + a.project, 'ok');
     }
   }
-  if (iid) { Object.assign(a.items.find(x => x.id === iid), data); logAction('item', 'تعديل بند: ' + p.name + ' / ' + a.name + ' — ' + desc + ' — ' + fmt(amount)); }
-  else { a.items.push(Object.assign({ id: uid(), retention: 0, advanceDeduction: 0, deductions: 0, cumTo: 0 }, data)); logAction('item', 'بند جديد: ' + p.name + ' / ' + a.name + ' — ' + desc + ' — ' + fmt(amount)); }
-  save(); closeModal(); render(); toast('البند اتسجل ✓', 'ok');
+  if (iid && tgt !== a) {            // تعديل والمشروع اتغير: البند بيتنقل لحساب المشروع
+    const old = a.items.find(x => x.id === iid);
+    a.items = a.items.filter(x => x.id !== iid);
+    tgt.items.push(Object.assign(old, data));
+    logAction('item', 'نقل بند: ' + p.name + ' / ' + a.name + ' ← ' + tgt.name + ' (مشروع ' + data.proj + ') — ' + desc + ' — ' + fmt(amount));
+  }
+  else if (iid) { Object.assign(a.items.find(x => x.id === iid), data); logAction('item', 'تعديل بند: ' + p.name + ' / ' + a.name + ' — ' + desc + ' — ' + fmt(amount)); }
+  else { tgt.items.push(Object.assign({ id: uid(), retention: 0, advanceDeduction: 0, deductions: 0, cumTo: 0 }, data)); logAction('item', 'بند جديد: ' + p.name + ' / ' + tgt.name + ' — ' + desc + ' — ' + fmt(amount)); }
+  save(); closeModal(); render();
+  toast(tgt !== a ? 'البند اتسجل في حساب «' + tgt.name + '» (مشروع ' + data.proj + ') ✓ — Ctrl+Z يرجّع' : 'البند اتسجل ✓', 'ok');
 }
 
 /* ================= المستخلص ================= */
