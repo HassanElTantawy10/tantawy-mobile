@@ -3391,6 +3391,7 @@ function accDetail(p, a) {
       ${isC && a.mode === 'items' ? `<button class="btn sm navy no-print" onclick="openExtract('${p.id}','${a.id}')">+ مستخلص</button>` : ''}
       <button class="btn sm no-print" onclick="openItem('${p.id}','${a.id}')">+ ${isC ? 'بند أعمال' : 'فاتورة توريد'}</button>
       <button class="btn sm no-print" onclick="openGrid('${p.id}','${a.id}')">▦ إدخال جماعي</button>
+      <button class="btn sm no-print" onclick="openPayGrid('${p.id}','${a.id}')">▦ سداد جماعي</button>
       <button class="btn sm no-print" onclick="openTemplates('${p.id}','${a.id}')">📑 قوالب</button>
       <button class="btn sm no-print" onclick="openImport('${p.id}','${a.id}')">⤒ استيراد</button>
       ${p.type === 'supplier' ? `<button class="btn sm no-print" onclick="openRecon('${p.id}','${a.id}')">⇄ مطابقة كشفه</button>` : ''}
@@ -5478,6 +5479,122 @@ function saveGrid(pid, aid) {
   logAction('import', 'إدخال جماعي في ' + p.name + ' / ' + a.name + ': ' + ni + ' بند و ' + np + ' سداد');
   save(); closeModal(); render();
   toast('اتسجل ' + ni + ' بند و ' + np + ' سداد ✓', 'ok');
+}
+
+/* ================= السداد الجماعي ================= */
+function pgRowHTML(i, fl) {
+  const ph = (t) => i === 0 ? t : '';
+  return `<tr id="pgr${i}">
+    <td><input id="pg${i}d" data-date data-live="pgCalc" style="width:100px" ${i === 0 ? `value="${dsp(tgToday())}"` : 'placeholder="زي فوق"'}></td>
+    <td><input id="pg${i}a" data-money data-live="pgCalc" style="width:100px" placeholder="${ph('المبلغ')}"></td>
+    <td><select id="pg${i}m" onchange="pgCalc()" style="width:98px">${i === 0 ? '' : '<option value="">زي فوق</option>'}${METHOD_STD.map(m => `<option${i === 0 && m === 'انستاباي' ? ' selected' : ''}>${esc(m)}</option>`).join('')}</select></td>
+    <td><select id="pg${i}k" onchange="pgCalc()" style="width:90px"><option value="pay">سداد</option><option value="advance">سلفة</option><option value="sched">مؤجل / شيك</option></select></td>
+    <td><input id="pg${i}r" list="pgRecvL" style="width:100px" placeholder="${ph('اتسلمها مين')}"></td>
+    <td><input id="pg${i}c" dir="ltr" style="width:72px" placeholder="${ph('الشيك')}"></td>
+    <td><input id="pg${i}n" style="min-width:120px;width:100%" placeholder="${ph('البيان')}"></td>
+    ${fl.length ? `<td><input id="pg${i}f" list="pgFloorL" style="width:84px" placeholder="${ph('الدور')}"></td>` : ''}
+  </tr>`;
+}
+function openPayGrid(pid, aid) {
+  const p = findParty(pid), a = findAcc(p, aid), fl = accFloors(a);
+  modal('سداد جماعي — ' + a.name, `
+    <div class="note">اكتب كل سداد في سطر واحفظهم مرة واحدة. <b>التاريخ وطريقة الدفع</b> لو سبتهم فاضيين بياخدوا اللي في السطر اللي فوقه.
+      الخزنة بتتحدد من طريقة الدفع. أي سطر من غير مبلغ بيتجاهل.</div>
+    <datalist id="pgRecvL">${knownReceivers(pid).slice(0, 40).map(r => `<option>${esc(r)}</option>`).join('')}</datalist>
+    ${fl.length ? `<datalist id="pgFloorL">${fl.map(f => `<option>${esc(f)}</option>`).join('')}</datalist>` : ''}
+    <div class="tbl-wrap" style="max-height:340px;border:1px solid var(--line);border-radius:10px">
+      <style>.pg-t th,.pg-t td{padding:6px 4px}</style>
+      <table class="pg-t" style="font-size:12.5px;width:100%"><thead><tr>
+        <th>التاريخ</th><th>المبلغ</th><th>طريقة الدفع</th><th>النوع</th><th>اتسلمها مين</th><th>رقم الشيك</th><th>البيان</th>${fl.length ? '<th>الدور</th>' : ''}
+      </tr></thead><tbody id="pgBody">${[0, 1, 2, 3, 4, 5].map(i => pgRowHTML(i, fl)).join('')}</tbody></table>
+    </div>
+    <button class="btn sm" style="margin-top:9px" onclick="pgAddRows()">+ 5 سطور كمان</button>
+    <div class="calc-box" id="pgBox" style="margin-top:10px"></div>`,
+    `<button class="btn gold" onclick="savePayGrid('${pid}','${aid}')">حفظ الكل</button>
+     <button class="btn" onclick="closeModal()">إلغاء</button>`, true);
+  window._pgCtx = { pid, aid, rows: 6, fl };
+  pgCalc();
+  setTimeout(() => { const e = $('#pg0a'); if (e) e.focus(); }, 60);
+}
+function pgAddRows() {
+  const c = window._pgCtx, tb = $('#pgBody');
+  for (let i = c.rows; i < c.rows + 5; i++) {
+    const t = document.createElement('tbody'); t.innerHTML = pgRowHTML(i, c.fl);
+    tb.appendChild(t.firstElementChild);
+  }
+  c.rows += 5;
+  wireInputs($('#modalRoot'));
+  pgCalc();
+}
+/* السطور المكتوبة — التاريخ والطريقة الفاضيين بياخدوا اللي فوق */
+function pgRows() {
+  const c = window._pgCtx, out = [];
+  let lastD = '', lastM = 'انستاباي';
+  for (let i = 0; i < c.rows; i++) {
+    if (!$('#pg' + i + 'a')) continue;
+    const d = dval('pg' + i + 'd'), m = sval('pg' + i + 'm');
+    if (d) lastD = d;
+    if (m) lastM = m;
+    const amount = mval('pg' + i + 'a');
+    const any = amount || sval('pg' + i + 'n') || sval('pg' + i + 'r') || sval('pg' + i + 'c');
+    if (!any) continue;
+    out.push({
+      i, amount, date: d || lastD, method: m || lastM, kind: sval('pg' + i + 'k') || 'pay',
+      recv: sval('pg' + i + 'r'), cheque: sval('pg' + i + 'c'), note: sval('pg' + i + 'n'),
+      floor: c.fl.length ? sval('pg' + i + 'f') : ''
+    });
+  }
+  return out;
+}
+function pgCalc() {
+  const c = window._pgCtx; if (!c) return;
+  const box = $('#pgBox'); if (!box) return;
+  const p = findParty(c.pid), a = findAcc(p, c.aid);
+  const rows = pgRows().filter(r => r.amount);
+  const pay = rows.filter(r => r.kind === 'pay').reduce((s, r) => s + r.amount, 0);
+  const adv = rows.filter(r => r.kind === 'advance').reduce((s, r) => s + r.amount, 0);
+  const sch = rows.filter(r => r.kind === 'sched').reduce((s, r) => s + r.amount, 0);
+  const d = accDues(a), paid = accPaid(a);
+  const before = d === null ? null : d - paid + num(a.adjust), after = before === null ? null : before - pay;
+  box.innerHTML =
+    `<div class="ln"><span>سدادات هتتسجل</span><b>${rows.length}</b><b class="num">${fmt2(pay + adv + sch)}</b></div>
+     ${adv ? `<div class="ln"><span>منهم سلف (بتتخصم بعدين)</span><b class="num">${fmt2(adv)}</b></div>` : ''}
+     ${sch ? `<div class="ln"><span>منهم مؤجل / شيكات (مش داخلة في الرصيد لحد ما تتصرف)</span><b class="num">${fmt2(sch)}</b></div>` : ''}
+     ${before === null ? `<div class="ln tot"><span>إجمالي الواصل بعد الحفظ</span><span class="num">${fmt2(paid + pay)} ج.م</span></div>`
+      : `<div class="ln"><span>${before < 0 ? 'لنا عنده دلوقتي' : 'الباقي له دلوقتي'}</span><b class="num">${fmt2(Math.abs(before))}</b></div>
+         <div class="ln tot"><span>${after < 0 ? 'هيبقى لنا عنده' : 'الباقي له بعد السداد'}</span><span class="num">${fmt2(Math.abs(after))} ج.م</span></div>`}`;
+}
+function savePayGrid(pid, aid) {
+  const p = findParty(pid), a = findAcc(p, aid);
+  const all = pgRows();
+  const noAmt = all.find(r => !r.amount);
+  if (noAmt) return toast('سطر ' + (noAmt.i + 1) + ' مكتوب فيه حاجة من غير مبلغ', 'err');
+  const rows = all;
+  if (!rows.length) return toast('مفيش سدادات مكتوبة', 'err');
+  const bad = rows.find(r => isLocked(r.date));
+  if (bad) return toast('سطر ' + (bad.i + 1) + ' تاريخه في فترة مقفولة (' + dsp(bad.date) + ')', 'err');
+  /* تكرار: سداد بنفس المبلغ لنفس الطرف في نفس الأسبوع، أو نفس السطر مكتوب مرتين */
+  const _dups = [];
+  rows.forEach((r, k) => {
+    const lbl = 'سطر ' + (r.i + 1) + ': ' + fmt2(r.amount) + ' — ' + dsp(r.date || tgToday());
+    if (r.kind !== 'sched') findDuplicates(pid, r.amount, r.date || tgToday()).slice(0, 2)
+      .forEach(x => _dups.push({ t: lbl, s: 'زي سداد ' + x.a.name + ' — ' + dsp(x.y.date) + (x.y.method ? ' — ' + x.y.method : '') }));
+    const twin = rows.find((o, j) => j < k && Math.abs(o.amount - r.amount) <= 0.5 && o.date === r.date);
+    if (twin) _dups.push({ t: lbl, s: 'مكتوب مرتين — زي سطر ' + (twin.i + 1) });
+  });
+  if (dupAsk('paygrid|' + rows.map(r => r.amount + r.date).join('|'), 'فيه سدادات شكلها متسجلة قبل كده:', _dups, () => savePayGrid(pid, aid))) return;
+  snapshot();
+  let tot = 0;
+  rows.forEach(r => {
+    a.payments.push({
+      id: uid(), date: r.date, amount: r.amount, method: r.method, note: r.note, recv: r.recv,
+      kind: r.kind, treasury: methodTreasury(r.method), floor: r.floor, cheque: r.cheque, photo: '', link: ''
+    });
+    tot += r.amount;
+    logAction('payment', (r.kind === 'advance' ? 'سلفة' : r.kind === 'sched' ? 'مستحق مؤجل' : 'سداد') + ' (جماعي) لـ ' + p.name + ' / ' + a.name + ' — ' + fmt(r.amount) + (r.method ? ' — ' + r.method : ''));
+  });
+  save(); closeModal(); render();
+  toast('اتسجل ' + rows.length + ' سداد بإجمالي ' + fmt2(tot) + ' ✓ — Ctrl+Z يرجّعهم', 'ok');
 }
 
 /* ================= تفكيك المقطوعية لسعر وحدة ================= */
