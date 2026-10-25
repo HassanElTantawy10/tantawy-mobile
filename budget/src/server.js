@@ -26,6 +26,7 @@ function setup() {
 }
 function linkCode() {
   var url = ScriptApp.getService().getUrl();
+  if (/\/dev$/.test(url)) Logger.log('⚠ الرابط اللي تحت آخره /dev (رابط التجربة). استخدم بداله رابط /exec من Deploy ← Manage deployments، وحط بعده نفس الـ # والحروف.');
   Logger.log('كود الربط (انسخه كله وحطه في البرنامج):\n' + url + '#' + P.getProperty('KEY'));
 }
 

@@ -669,7 +669,7 @@ function trendPct(vals) {            // vals: الأحدث الأول
   return Math.round((a / b) / my * 100);
 }
 /* بيقيس آخر 6 دورات كاملة لكل قسم — من غير المصاريف الثابتة (دي بتتحسب من الالتزامات بالظبط) */
-function history(D, today, nBack) {
+function cycleHistory(D, today, nBack) {
   var cd = cycleDayOf(D), cur = cycleOf(today, cd), out = [];
   var firstTx = D.tx.reduce(function (m, t) { return !m || t.date < m ? t.date : m; }, '');
   for (var i = 1; i <= (nBack || 6); i++) {
@@ -688,7 +688,7 @@ function history(D, today, nBack) {
   return full.length ? full : out;
 }
 function forecastCycle(D, c, today) {
-  var hist = history(D, today, 6), cats = {}, incs = {};
+  var hist = cycleHistory(D, today, 6), cats = {}, incs = {};
   var res = { c: c, fixedInc: 0, fixedExp: 0, varExp: 0, varInc: 0, lo: 0, hi: 0, rows: [], incRows: [], dues: [], basis: hist.length, goals: 0 };
   // ١) الثابت: من الالتزامات والدخل المتكرر
   var dues = dueList(D, c.start, c.end); res.dues = dues;
@@ -1403,7 +1403,7 @@ function onboarding() {
   </ol><div class="small" style="margin-top:6px">ولو عايز تسجل من التليجرام برسالة زي «150 بنزين»: الإعدادات ← بوت التليجرام.</div></div>`;
 }
 function insights(t) {
-  const out = [], c = cycleOf(t, cd()), p = projectCurrent(D, t), hist = history(D, t, 3);
+  const out = [], c = cycleOf(t, cd()), p = projectCurrent(D, t), hist = cycleHistory(D, t, 3);
   // قسم ماشي أعلى من المعتاد
   if (hist.length >= 2 && p.gone >= 7) {
     const s = summarize(D, c.start, t), factor = p.total / p.gone;
@@ -1551,7 +1551,7 @@ function bulkCat() {
 
 /* ---------- الميزانية ---------- */
 function avgVar(catId, n) {
-  const h = history(D, todayISO(), n || 3);
+  const h = cycleHistory(D, todayISO(), n || 3);
   if (!h.length) return 0;
   return r2(h.reduce((a, x) => a + (x.varCat[catId] || 0), 0) / h.length);
 }
@@ -1592,7 +1592,7 @@ function saveBudget(id, el) {
   commit([put('cats', n)], 'ميزانية ' + k.name + ': ' + fmtMoney(v) + ' ✓', { flash: id });
 }
 function suggestBudget() {
-  const h = history(D, todayISO(), 3);
+  const h = cycleHistory(D, todayISO(), 3);
   if (!h.length) { toast('محتاج شهر كامل على الأقل من الحركات عشان أقترح'); return; }
   const sug = D.cats.filter(k => k.kind === 'exp' && !k.archived).map(k => {
     const base = avgVar(k.id, 3) * 1.05 + fixedMonthly(k.id);
@@ -1738,7 +1738,7 @@ VIEWS.goals = () => {
       ${need ? `<div class="row" style="margin-top:6px"><span>محتاج كل شهر</span><b>${fmtMoney(need)}</b></div>` : ''}
       <div class="acts"><button class="btn sm gold" onclick="txModal(null,{kind:'save',goal:'${g.id}'})">+ حط فلوس</button><button class="btn sm" onclick="txModal(null,{kind:'unsave',goal:'${g.id}'})">سحب</button><button class="btn sm ghost" onclick="goalModal('${g.id}')">✎</button></div></div>`;
   }).join('')}</div>` : `<div class="card">${emptyBox('💰', 'اعمل هدف: عربية، شقة، عمرة، جهاز، احتياطي طوارئ (3–6 شهور مصاريف)…', `<button class="btn gold" onclick="goalModal()">+ هدف</button>`)}</div>`;
-  const avgExp = history(D, t, 6).reduce((a, x, _, arr) => a + (Object.values(x.varCat).reduce((s, v) => s + v, 0) + x.fixExp) / arr.length, 0);
+  const avgExp = cycleHistory(D, t, 6).reduce((a, x, _, arr) => a + (Object.values(x.varCat).reduce((s, v) => s + v, 0) + x.fixExp) / arr.length, 0);
   if (avgExp > 0 && !D.goals.some(g => /طوارئ|احتياطي/.test(g.name))) h += `<div class="note blue">💡 متوسط مصروفك الشهري ${fmtMoney(avgExp)} — احتياطي طوارئ كويس = ${fmtMoney(avgExp * 3)} لـ ${fmtMoney(avgExp * 6)}. <button class="btn sm" onclick="goalModal(null,{name:'احتياطي طوارئ',icon:'🛟',target:${Math.round(avgExp * 3 / 100) * 100}})">اعمله هدف</button></div>`;
   return h;
 };
@@ -2063,7 +2063,7 @@ VIEWS.reports = () => {
   return h + (UI.repTab === 'year' ? yearReport() : monthReport());
 };
 function monthReport() {
-  const c = cyc(), s = summarize(D, c.start, c.end), t = todayISO(), hist = history(D, c.end < t ? addDays(c.end, 1) : t, 3);
+  const c = cyc(), s = summarize(D, c.start, c.end), t = todayISO(), hist = cycleHistory(D, c.end < t ? addDays(c.end, 1) : t, 3);
   const rows = Object.keys(s.byCat).map(k => ({ k: catOf(D, k), v: s.byCat[k], avg: hist.length ? hist.reduce((a, x) => a + (x.varCat[k] || 0) + 0, 0) / hist.length : null })).sort((a, b) => b.v - a.v);
   const top = txIn(D, c.start, c.end).filter(x => x.kind === 'exp').sort((a, b) => b.amount - a.amount).slice(0, 10);
   let h = `<div class="card"><div class="card-h">${cycleNav()}</div><div class="card-b">
@@ -2301,7 +2301,7 @@ document.addEventListener('keydown', e => {
 });
 
 /* ================= التشغيل ================= */
-const APP_VER = '2026.10.25-6f55';
+const APP_VER = '2026.10.25-0068';
 function boot() {
   $('#sideLogo').src = LOGO; $('#mLogo').src = LOGO;
   // كود الربط ممكن ييجي في الرابط مرة واحدة: …/budget/#link=<الكود>

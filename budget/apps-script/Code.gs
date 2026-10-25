@@ -26,6 +26,7 @@ function setup() {
 }
 function linkCode() {
   var url = ScriptApp.getService().getUrl();
+  if (/\/dev$/.test(url)) Logger.log('⚠ الرابط اللي تحت آخره /dev (رابط التجربة). استخدم بداله رابط /exec من Deploy ← Manage deployments، وحط بعده نفس الـ # والحروف.');
   Logger.log('كود الربط (انسخه كله وحطه في البرنامج):\n' + url + '#' + P.getProperty('KEY'));
 }
 
@@ -723,7 +724,7 @@ function trendPct(vals) {            // vals: الأحدث الأول
   return Math.round((a / b) / my * 100);
 }
 /* بيقيس آخر 6 دورات كاملة لكل قسم — من غير المصاريف الثابتة (دي بتتحسب من الالتزامات بالظبط) */
-function history(D, today, nBack) {
+function cycleHistory(D, today, nBack) {
   var cd = cycleDayOf(D), cur = cycleOf(today, cd), out = [];
   var firstTx = D.tx.reduce(function (m, t) { return !m || t.date < m ? t.date : m; }, '');
   for (var i = 1; i <= (nBack || 6); i++) {
@@ -742,7 +743,7 @@ function history(D, today, nBack) {
   return full.length ? full : out;
 }
 function forecastCycle(D, c, today) {
-  var hist = history(D, today, 6), cats = {}, incs = {};
+  var hist = cycleHistory(D, today, 6), cats = {}, incs = {};
   var res = { c: c, fixedInc: 0, fixedExp: 0, varExp: 0, varInc: 0, lo: 0, hi: 0, rows: [], incRows: [], dues: [], basis: hist.length, goals: 0 };
   // ١) الثابت: من الالتزامات والدخل المتكرر
   var dues = dueList(D, c.start, c.end); res.dues = dues;

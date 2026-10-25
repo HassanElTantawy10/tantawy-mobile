@@ -6,7 +6,7 @@ VIEWS.reports = () => {
   return h + (UI.repTab === 'year' ? yearReport() : monthReport());
 };
 function monthReport() {
-  const c = cyc(), s = summarize(D, c.start, c.end), t = todayISO(), hist = history(D, c.end < t ? addDays(c.end, 1) : t, 3);
+  const c = cyc(), s = summarize(D, c.start, c.end), t = todayISO(), hist = cycleHistory(D, c.end < t ? addDays(c.end, 1) : t, 3);
   const rows = Object.keys(s.byCat).map(k => ({ k: catOf(D, k), v: s.byCat[k], avg: hist.length ? hist.reduce((a, x) => a + (x.varCat[k] || 0) + 0, 0) / hist.length : null })).sort((a, b) => b.v - a.v);
   const top = txIn(D, c.start, c.end).filter(x => x.kind === 'exp').sort((a, b) => b.amount - a.amount).slice(0, 10);
   let h = `<div class="card"><div class="card-h">${cycleNav()}</div><div class="card-b">

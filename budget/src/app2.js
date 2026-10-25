@@ -92,7 +92,7 @@ function onboarding() {
   </ol><div class="small" style="margin-top:6px">ولو عايز تسجل من التليجرام برسالة زي «150 بنزين»: الإعدادات ← بوت التليجرام.</div></div>`;
 }
 function insights(t) {
-  const out = [], c = cycleOf(t, cd()), p = projectCurrent(D, t), hist = history(D, t, 3);
+  const out = [], c = cycleOf(t, cd()), p = projectCurrent(D, t), hist = cycleHistory(D, t, 3);
   // قسم ماشي أعلى من المعتاد
   if (hist.length >= 2 && p.gone >= 7) {
     const s = summarize(D, c.start, t), factor = p.total / p.gone;
@@ -240,7 +240,7 @@ function bulkCat() {
 
 /* ---------- الميزانية ---------- */
 function avgVar(catId, n) {
-  const h = history(D, todayISO(), n || 3);
+  const h = cycleHistory(D, todayISO(), n || 3);
   if (!h.length) return 0;
   return r2(h.reduce((a, x) => a + (x.varCat[catId] || 0), 0) / h.length);
 }
@@ -281,7 +281,7 @@ function saveBudget(id, el) {
   commit([put('cats', n)], 'ميزانية ' + k.name + ': ' + fmtMoney(v) + ' ✓', { flash: id });
 }
 function suggestBudget() {
-  const h = history(D, todayISO(), 3);
+  const h = cycleHistory(D, todayISO(), 3);
   if (!h.length) { toast('محتاج شهر كامل على الأقل من الحركات عشان أقترح'); return; }
   const sug = D.cats.filter(k => k.kind === 'exp' && !k.archived).map(k => {
     const base = avgVar(k.id, 3) * 1.05 + fixedMonthly(k.id);
@@ -427,7 +427,7 @@ VIEWS.goals = () => {
       ${need ? `<div class="row" style="margin-top:6px"><span>محتاج كل شهر</span><b>${fmtMoney(need)}</b></div>` : ''}
       <div class="acts"><button class="btn sm gold" onclick="txModal(null,{kind:'save',goal:'${g.id}'})">+ حط فلوس</button><button class="btn sm" onclick="txModal(null,{kind:'unsave',goal:'${g.id}'})">سحب</button><button class="btn sm ghost" onclick="goalModal('${g.id}')">✎</button></div></div>`;
   }).join('')}</div>` : `<div class="card">${emptyBox('💰', 'اعمل هدف: عربية، شقة، عمرة، جهاز، احتياطي طوارئ (3–6 شهور مصاريف)…', `<button class="btn gold" onclick="goalModal()">+ هدف</button>`)}</div>`;
-  const avgExp = history(D, t, 6).reduce((a, x, _, arr) => a + (Object.values(x.varCat).reduce((s, v) => s + v, 0) + x.fixExp) / arr.length, 0);
+  const avgExp = cycleHistory(D, t, 6).reduce((a, x, _, arr) => a + (Object.values(x.varCat).reduce((s, v) => s + v, 0) + x.fixExp) / arr.length, 0);
   if (avgExp > 0 && !D.goals.some(g => /طوارئ|احتياطي/.test(g.name))) h += `<div class="note blue">💡 متوسط مصروفك الشهري ${fmtMoney(avgExp)} — احتياطي طوارئ كويس = ${fmtMoney(avgExp * 3)} لـ ${fmtMoney(avgExp * 6)}. <button class="btn sm" onclick="goalModal(null,{name:'احتياطي طوارئ',icon:'🛟',target:${Math.round(avgExp * 3 / 100) * 100}})">اعمله هدف</button></div>`;
   return h;
 };
