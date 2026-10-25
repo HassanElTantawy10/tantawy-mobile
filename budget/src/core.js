@@ -117,11 +117,11 @@ function defaultState() {
       cat('c_rent', 'إيجارات', 'inc', '🏘', 'ايجار, ايجارات'),
       cat('c_oinc', 'دخل تاني', 'inc', '💵', 'هديه, عيديه, رجعلي, استرداد')
     ],
-    tx: [], rec: [], goals: [], debts: [], trash: [],
+    tx: [], rec: [], goals: [], debts: [], members: [], invites: [], trash: [],
     meta: { rev: 0, created: new Date().toISOString().slice(0, 19) }
   };
 }
-var COLS = ['accounts', 'cats', 'tx', 'rec', 'goals', 'debts'];
+var COLS = ['accounts', 'cats', 'tx', 'rec', 'goals', 'debts', 'members', 'invites'];   // members/invites = شركاء البوت
 function ensureShape(D) {
   var d = D && typeof D === 'object' ? D : defaultState();
   COLS.concat(['trash']).forEach(function (c) { if (!Array.isArray(d[c])) d[c] = []; });
@@ -134,6 +134,7 @@ function ensureShape(D) {
 }
 function byId(arr, id) { for (var i = 0; i < (arr || []).length; i++) if (arr[i].id === id) return arr[i]; return null; }
 function catOf(D, id) { return byId(D.cats, id) || { id: id, name: id ? 'قسم ممسوح' : 'من غير قسم', icon: '❔', kind: 'exp', budget: 0 }; }
+function memberOf(D, id) { return id ? byId(D.members, id) || { id: id, name: 'شريك ممسوح' } : null; }
 function accOf(D, id) { return byId(D.accounts, id) || { id: id, name: id ? 'حساب ممسوح' : '—', icon: '❔' }; }
 
 /* ---------- العمليات (المزامنة كلها عمليات صغيرة: put / del / restore / set) ----------

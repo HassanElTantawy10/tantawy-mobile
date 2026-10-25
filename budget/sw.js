@@ -1,5 +1,5 @@
 /* البرنامج يفتح من غير نت: نسخة من الصفحة على الجهاز. لو فيه نت بنجيب الأحدث. البيانات نفسها في localStorage. */
-const CACHE = 'budget-0068336958';
+const CACHE = 'budget-44dc7d828e';
 const FILES = ['./', './index.html', './manifest.json', './icon-180.png', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', e => {

@@ -155,7 +155,7 @@ function txRow(x, mini) {
   else if (x.kind === 'save' || x.kind === 'unsave') { const g = byId(D.goals, x.goal); ic = '🎯'; title = (x.kind === 'save' ? 'حطيت في: ' : 'سحبت من: ') + esc(g ? g.name : 'هدف ممسوح'); }
   else if (x.kind === 'adj') { ic = '⚖️'; title = 'تسوية رصيد'; }
   else { ic = k.icon; title = esc(k.name); }
-  const chips = (x.via === 'telegram' ? ' <span class="chip blue" title="اتسجلت من التليجرام">🤖</span>' : x.via === 'auto' ? ' <span class="chip gray">تلقائي</span>' : '') + (x.rec ? ' <span class="chip gold">ثابت</span>' : '');
+  const chips = (x.by ? ` <span class="chip blue" title="سجّلها من التليجرام">👤 ${esc(memberOf(D, x.by).name)}</span>` : x.via === 'telegram' ? ' <span class="chip blue" title="اتسجلت من التليجرام">🤖</span>' : x.via === 'auto' ? ' <span class="chip gray">تلقائي</span>' : '') + (x.rec ? ' <span class="chip gold">ثابت</span>' : '');
   const amtCls = x.kind === 'inc' || x.kind === 'unsave' ? 'amt-in' : x.kind === 'xfer' || x.kind === 'adj' ? 'amt-x' : 'amt-out';
   const amt = x.kind === 'inc' ? moneyS(x.amount, true) : x.kind === 'adj' ? moneyS(x.amount, true) : moneyS(x.amount);
   const sel = UI.sel.has(x.id) ? ' selrow' : '';
@@ -169,7 +169,7 @@ function txRow(x, mini) {
 VIEWS.tx = () => {
   const c = cyc(), F = UI.filt, q = normAr(F.q);
   let L = q ? D.tx.slice() : txIn(D, c.start, c.end);
-  L = L.filter(x => (!F.kind || x.kind === F.kind || (F.kind === 'save' && x.kind === 'unsave')) && (!F.cat || x.cat === F.cat) && (!F.acc || x.acc === F.acc || x.to === F.acc));
+  L = L.filter(x => (!F.kind || x.kind === F.kind || (F.kind === 'save' && x.kind === 'unsave')) && (!F.cat || x.cat === F.cat) && (!F.acc || x.acc === F.acc || x.to === F.acc) && (!F.by || (F.by === 'me' ? !x.by : x.by === F.by)));
   if (q) L = L.filter(x => normAr([x.note, catOf(D, x.cat).name, accOf(D, x.acc).name, fmtMoney(x.amount), String(x.amount), dsp(x.date)].join(' ')).includes(q));
   L.sort(txSort);
   let inc = 0, exp = 0; L.forEach(x => { if (x.kind === 'inc') inc += r2(x.amount); else if (x.kind === 'exp') exp += r2(x.amount); });
@@ -181,7 +181,8 @@ VIEWS.tx = () => {
       <div class="picks">${kinds.map(k => `<button class="pick ${F.kind === k[0] ? 'on' : ''}" onclick="UI.filt.kind='${k[0]}';render()">${k[1]}</button>`).join('')}</div>
       <select style="width:auto;max-width:180px" onchange="UI.filt.cat=this.value;render()"><option value="">كل الأقسام</option>${D.cats.map(k => `<option value="${k.id}" ${F.cat === k.id ? 'selected' : ''}>${k.icon} ${esc(k.name)}</option>`).join('')}</select>
       <select style="width:auto;max-width:160px" onchange="UI.filt.acc=this.value;render()"><option value="">كل الحسابات</option>${D.accounts.map(a => `<option value="${a.id}" ${F.acc === a.id ? 'selected' : ''}>${a.icon} ${esc(a.name)}</option>`).join('')}</select>
-      ${F.kind || F.cat || F.acc || F.q ? `<button class="btn sm ghost" onclick="UI.filt={kind:'',cat:'',acc:'',q:''};render()">✕ شيل الفلتر</button>` : ''}
+      ${D.members.length ? `<select style="width:auto;max-width:150px" onchange="UI.filt.by=this.value;render()"><option value="">مين سجّل: الكل</option><option value="me" ${F.by === 'me' ? 'selected' : ''}>أنا</option>${D.members.map(m => `<option value="${m.id}" ${F.by === m.id ? 'selected' : ''}>👤 ${esc(m.name)}</option>`).join('')}</select>` : ''}
+      ${F.kind || F.cat || F.acc || F.q || F.by ? `<button class="btn sm ghost" onclick="UI.filt={kind:'',cat:'',acc:'',q:'',by:''};render()">✕ شيل الفلتر</button>` : ''}
     </div>`;
   if (UI.sel.size > 1) {
     let sum = 0; UI.sel.forEach(id => { const x = byId(D.tx, id); if (x) sum += r2(x.amount); });
@@ -405,7 +406,7 @@ VIEWS.accounts = () => {
     return `<div class="acc" data-id="${a.id}" style="${a.archived ? 'opacity:.55' : ''}"><div class="an"><span class="ic">${a.icon}</span>${esc(a.name)}${a.id === D.settings.defAcc ? ' <span class="chip gold">الأساسي</span>' : ''}${a.archived ? ' <span class="chip gray">مقفول</span>' : ''}</div>
       <div class="am">رصيد البداية ${fmtMoney(a.opening)}${last ? ' · آخر حركة ' + dsp(last.date) : ''}</div>
       <div class="big" style="color:${(b[a.id] || 0) < 0 ? 'var(--red)' : 'var(--navy)'}">${money(b[a.id] || 0)}</div>
-      <div class="acts"><button class="btn sm" onclick="adjModal('${a.id}')">⚖️ ظبّط الرصيد</button><button class="btn sm" onclick="UI.filt={kind:'',cat:'',acc:'${a.id}',q:''};UI.view='tx';render()">🧾 الحركات</button><button class="btn sm ghost" onclick="accModal('${a.id}')">✎</button></div></div>`;
+      <div class="acts"><button class="btn sm" onclick="adjModal('${a.id}')">⚖️ ظبّط الرصيد</button><button class="btn sm" onclick="UI.filt={kind:'',cat:'',acc:'${a.id}',q:'',by:''};UI.view='tx';render()">🧾 الحركات</button><button class="btn sm ghost" onclick="accModal('${a.id}')">✎</button></div></div>`;
   }).join('')}</div>`;
   h += `<div class="note blue">💡 «ظبّط الرصيد»: اكتب الفلوس اللي في إيدك فعلاً والبرنامج يعمل تسوية بالفرق — من غير ما تبوّظ المصروف أو الميزانية.</div>`;
   return h;
@@ -451,11 +452,12 @@ VIEWS.debts = () => {
 };
 
 /* ---------- سلة المحذوفات ---------- */
-const COL_AR = { tx: 'حركة', rec: 'التزام/دخل ثابت', cats: 'قسم', accounts: 'حساب', goals: 'هدف', debts: 'سلفة' };
+const COL_AR = { tx: 'حركة', rec: 'التزام/دخل ثابت', cats: 'قسم', accounts: 'حساب', goals: 'هدف', debts: 'سلفة', members: 'شريك', invites: 'دعوة' };
 VIEWS.trash = () => {
   let h = topbar('سلة المحذوفات', 'أي حاجة بتتمسح بتيجي هنا — ومفيش مسح نهائي', '');
-  if (!D.trash.length) return h + `<div class="card">${emptyBox('🗑', 'السلة فاضية')}</div>`;
-  h += `<div class="card"><div class="tbl-wrap"><table><thead><tr><th>اتمسح</th><th>النوع</th><th>إيه هو</th><th></th></tr></thead><tbody>${D.trash.slice(0, 300).map(t => {
+  const TR = D.trash.filter(t => t.col !== 'invites');
+  if (!TR.length) return h + `<div class="card">${emptyBox('🗑', 'السلة فاضية')}</div>`;
+  h += `<div class="card"><div class="tbl-wrap"><table><thead><tr><th>اتمسح</th><th>النوع</th><th>إيه هو</th><th></th></tr></thead><tbody>${TR.slice(0, 300).map(t => {
     const it = t.item || {}, desc = t.col === 'tx' ? `${dsp(it.date)} — ${KIND_AR[it.kind] || ''} ${fmtMoney(it.amount)} — ${esc(catOf(D, it.cat).name)} ${esc(it.note || '')}` : esc(it.name || it.person || it.id);
     return `<tr><td class="dt">${dsp(String(t.at || '').slice(0, 10))}</td><td><span class="chip gray">${COL_AR[t.col] || t.col}</span></td><td>${desc}</td><td class="acts"><button class="btn sm" onclick="commit([{act:'restore',col:'${t.col}',id:'${it.id}'}],'رجعت ✓')">↩ رجّع</button></td></tr>`;
   }).join('')}</tbody></table></div></div>`;

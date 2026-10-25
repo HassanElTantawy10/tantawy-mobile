@@ -156,7 +156,7 @@ let D = ensureShape(LS.get('data') || defaultState());
 let CFG = LS.get('cfg');                         // {url, key}
 const SYNC = { rev: LS.get('rev') || 0, outbox: LS.get('outbox') || [], busy: false, err: null, lastOk: LS.get('lastOk') || '', saving: false };
 let UNDO = [];
-const UI = { view: 'home', off: 0, filt: { kind: '', cat: '', acc: '', q: '' }, sel: new Set(), flash: null, lastAdd: null, repTab: 'month' };
+const UI = { view: 'home', off: 0, filt: { kind: '', cat: '', acc: '', q: '', by: '' }, sel: new Set(), flash: null, lastAdd: null, repTab: 'month' };
 
 function persist() {
   const ok = LS.set('data', D);

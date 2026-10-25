@@ -13,6 +13,11 @@ function monthReport() {
     <div class="kpis">${kpi('emer', 'الدخل', money(s.inc))}${kpi('navy', 'المصروف', money(s.exp), s.fixedExp ? 'منه ثابت ' + fmtMoney(s.fixedExp) : '')}${kpi(s.net < 0 ? 'red' : 'gold', s.net < 0 ? 'العجز' : 'الفاضل', money(Math.abs(s.net)), s.rate !== null ? 'ادخار ' + s.rate + '%' : '', s.net < 0 ? 'neg' : '')}${kpi('blue', 'للأهداف', money(s.save), s.n + ' حركة')}</div>
     ${catDonut(s)}</div></div>`;
   h += `<div class="card"><div class="card-h"><span class="card-t">المصروف بالأقسام</span></div>${rows.length ? `<div class="tbl-wrap free"><table><thead><tr><th>القسم</th><th class="num">المبلغ</th><th class="num">النسبة</th><th class="num hide-sm">الميزانية</th><th class="num hide-sm">متوسط 3 شهور</th></tr></thead><tbody>${rows.map(r => `<tr><td>${r.k.icon} ${esc(r.k.name)}</td><td class="num"><b>${fmtMoney(r.v)}</b></td><td class="num">${s.exp ? Math.round(r.v / s.exp * 100) : 0}%</td><td class="num hide-sm" style="color:${num(r.k.budget) && r.v > num(r.k.budget) ? 'var(--red)' : 'inherit'}">${num(r.k.budget) ? fmtMoney(r.k.budget) : '—'}</td><td class="num hide-sm small">${r.avg == null ? '—' : fmtMoney(r.avg)}</td></tr>`).join('')}</tbody><tfoot><tr><td>الإجمالي</td><td class="num">${fmtMoney(s.exp)}</td><td class="num">100%</td><td class="num hide-sm">${fmtMoney(totalBudget(D))}</td><td class="hide-sm"></td></tr></tfoot></table></div>` : emptyBox('📈', 'مفيش مصروف في الشهر ده')}</div>`;
+  if (D.members.length) {
+    const by = {}; txIn(D, c.start, c.end).forEach(x => { if (x.kind === 'exp') { const k = x.by || 'me'; by[k] = (by[k] || 0) + r2(x.amount); } });
+    const ks = Object.keys(by).sort((a, b) => by[b] - by[a]);
+    if (ks.length) h += `<div class="card"><div class="card-h"><span class="card-t">👥 مين صرف كام</span></div><div class="tbl-wrap free"><table><tbody>${ks.map(k => `<tr class="clk" onclick="UI.filt={kind:'exp',cat:'',acc:'',q:'',by:'${k}'};UI.view='tx';render()"><td>${k === 'me' ? '🙋 أنا' : '👤 ' + esc(memberOf(D, k).name)}</td><td class="num"><b>${fmtMoney(by[k])}</b></td><td class="num small">${s.exp ? Math.round(by[k] / s.exp * 100) : 0}%</td></tr>`).join('')}</tbody></table></div></div>`;
+  }
   if (top.length) h += `<div class="card"><div class="card-h"><span class="card-t">أكبر 10 مصاريف</span></div><div class="tbl-wrap free"><table><tbody>${top.map(x => txRow(x, true)).join('')}</tbody></table></div></div>`;
   return h;
 }
@@ -87,6 +92,8 @@ VIEWS.settings = () => {
   h += `<div class="card"><div class="card-h"><span class="card-t">🏷 الأقسام</span><span class="spacer"></span><button class="btn sm gold" onclick="catModal(null,'exp')">+ قسم</button></div><div class="tbl-wrap"><table><thead><tr><th>القسم</th><th>النوع</th><th class="num">الميزانية</th><th class="hide-sm">كلمات التليجرام</th><th></th></tr></thead><tbody>${D.cats.slice().sort((a, b) => (a.kind > b.kind ? 1 : -1)).map(k => `<tr data-id="${k.id}" style="${k.archived ? 'opacity:.5' : ''}"><td>${k.icon} ${esc(k.name)}${k.archived ? ' <span class="chip gray">مقفول</span>' : ''}</td><td><span class="chip ${k.kind === 'inc' ? 'emer' : 'gray'}">${k.kind === 'inc' ? 'دخل' : 'مصروف'}</span></td><td class="num">${k.kind === 'exp' && num(k.budget) ? fmtMoney(k.budget) : '—'}</td><td class="hide-sm small">${esc((k.kw || '').slice(0, 60))}</td><td class="acts"><button class="btn ghost sm" onclick="catModal('${k.id}')">✎</button></td></tr>`).join('')}</tbody></table></div></div>`;
   // التليجرام
   h += `<div class="card" id="tgCard"><div class="card-h"><span class="card-t">🤖 بوت التليجرام</span><span class="spacer"></span>${tg.linked ? '<span class="chip pay">شغال</span>' : tg.token ? '<span class="chip amber">مستني الربط</span>' : ''}</div><div class="card-b">${tgSection(tg)}</div></div>`;
+  // الشركاء
+  h += `<div class="card" id="memCard"><div class="card-h"><span class="card-t">👥 شركاء في البوت</span><span class="spacer"></span>${CFG && tg.linked ? '<button class="btn sm gold" onclick="memberInvite()">+ شريك</button>' : ''}</div><div class="card-b">${membersSection(tg)}</div></div>`;
   // التنبيهات
   const hrs = Array.from({ length: 24 }, (_, i) => i);
   const hl = i => i === 0 ? '12 بالليل' : i < 12 ? i + ' الصبح' : i === 12 ? '12 الضهر' : (i - 12) + (i < 17 ? ' العصر' : ' بالليل');
@@ -114,6 +121,52 @@ VIEWS.settings = () => {
   if (CFG && !UI.tg && !UI.tgLoading) setTimeout(tgLoad, 50);
   return h;
 };
+/* ---------- الشركاء: حد تاني يسجل مصاريف من البوت ---------- */
+function membersSection(tg) {
+  const intro = '<div class="small" style="margin-bottom:10px">شريك (مراتك، أخوك، حد بيصرف معاك) يقدر يسجل مصاريف من نفس البوت: كل حركة يتكتب عليها اسمه وتوصلك رسالة بيها. مش بيشوف مرتبك ولا أرصدتك ولا حركاتك.</div>';
+  if (!CFG || !tg.linked) return intro + '<div class="note">اربط البوت بحسابك الأول (فوق) — وبعدها تقدر تضيف شركاء.</div>';
+  const now = Date.now(), c = curCycle(), inv = D.invites.filter(x => +x.exp > now);
+  let h = intro;
+  if (D.members.length) h += `<div class="tbl-wrap free"><table><thead><tr><th>الشريك</th><th class="num">صرف الشهر ده</th><th class="hide-sm">بيصرف من</th><th>يوصلني إشعار</th><th class="hide-sm">يشوف الميزانية</th><th></th></tr></thead><tbody>${D.members.map(m => {
+    let sum = 0; txIn(D, c.start, c.end).forEach(x => { if (x.by === m.id && x.kind === 'exp') sum += r2(x.amount); });
+    return `<tr data-id="${m.id}" style="${m.off ? 'opacity:.5' : ''}"><td><b>👤 ${esc(m.name)}</b>${m.off ? ' <span class="chip gray">موقوف</span>' : ''}<br><small>${m.tgName ? esc(m.tgName) + ' · ' : ''}من <span style="white-space:nowrap">${dsp(String(m.at || '').slice(0, 10))}</span></small></td><td class="num"><a href="#" onclick="UI.filt={kind:'exp',cat:'',acc:'',q:'',by:'${m.id}'};UI.view='tx';render();return false">${fmtMoney(sum)}</a></td>
+      <td class="hide-sm"><select style="width:auto" onchange="memberSet('${m.id}',{acc:this.value})">${D.accounts.filter(a => !a.archived).map(a => `<option value="${a.id}" ${m.acc === a.id ? 'selected' : ''}>${a.icon} ${esc(a.name)}</option>`).join('')}</select></td>
+      <td><input type="checkbox" ${m.notify ? 'checked' : ''} onchange="memberSet('${m.id}',{notify:this.checked})"></td><td class="hide-sm"><input type="checkbox" ${m.see ? 'checked' : ''} onchange="memberSet('${m.id}',{see:this.checked})"></td>
+      <td class="acts"><button class="btn ghost sm" title="${m.off ? 'رجّعه' : 'وقّفه'}" onclick="memberSet('${m.id}',{off:${!m.off}})">${m.off ? '▶' : '⏸'}</button><button class="btn ghost sm" title="مسح" onclick="memberDel('${m.id}')">🗑</button></td></tr>`;
+  }).join('')}</tbody></table></div>`;
+  if (inv.length) h += `<div style="margin-top:10px">${inv.map(x => `<div class="alert blue" style="cursor:default;align-items:center"><span style="flex:1">⏳ دعوة لـ <b>${esc(x.name)}</b> — الكود <b dir="ltr" style="letter-spacing:2px">${x.code}</b> (لحد ${new Date(+x.exp).toLocaleString('ar-EG', { weekday: 'long', hour: 'numeric', minute: '2-digit' })})</span><button class="btn sm" onclick="memberShow('${x.id}')">ابعتها</button><button class="btn ghost sm" onclick="commit([del('invites','${x.id}')],'الدعوة اتلغت')">✕</button></div>`).join('')}</div>`;
+  if (!D.members.length && !inv.length) h += `<div style="text-align:center"><button class="btn gold" onclick="memberInvite()">+ ضيف شريك</button></div>`;
+  return h;
+}
+function memberInvite() {
+  modal('+ شريك في البوت', `<div class="f"><label>اسمه (هيظهر على الحركات)</label><input id="mvName" placeholder="مثلاً: مراتي، أحمد…"></div>
+    <div class="f"><label>بيصرف من حساب</label><select id="mvAcc">${D.accounts.filter(a => !a.archived).map(a => `<option value="${a.id}" ${a.id === D.settings.defAcc ? 'selected' : ''}>${a.icon} ${esc(a.name)}</option>`).join('')}</select><div class="hint-k">لو إنت مديله فلوس كاش للبيت اختار «كاش».</div></div>
+    <label class="inl"><input type="checkbox" id="mvSee"> يشوف الفاضل في الميزانية (من غير الدخل والأرصدة)</label>`,
+    `<button class="btn navy" onclick="_mvSave()">اعمل كود دعوة</button><button class="btn" onclick="closeModal()">إلغاء</button>`);
+  window._mvSave = () => {
+    const name = sval('mvName'); if (!name) return toast('اكتب اسمه', 'err');
+    const used = new Set(D.invites.map(x => x.code).concat(D.members.map(m => m.code)));
+    let code; do { code = String(100000 + crypto.getRandomValues(new Uint32Array(1))[0] % 900000); } while (used.has(code));
+    const it = { id: uid('i'), code, name, acc: sval('mvAcc'), see: cval('mvSee'), exp: Date.now() + 48 * 3600000 };
+    closeModal(); commit([put('invites', it)], '', { undo: false });
+    sync(); memberShow(it.id);
+  };
+}
+function memberShow(id) {
+  const x = byId(D.invites, id); if (!x) return;
+  const bot = (UI.tg && UI.tg.bot) || '', link = bot ? `https://t.me/${bot}?start=${x.code}` : '';
+  const msg = `أهلاً ${x.name} 👋
+عشان تسجل المصاريف معايا: افتح البوت ده ودوس Start
+${link || 'وابعتله الكود ده: ' + x.code}
+
+وبعدها ابعت أي مصروف كده: 150 بنزين`;
+  modal('📨 دعوة ' + x.name, `<p>ابعت الرسالة دي لـ <b>${esc(x.name)}</b>. أول ما يفتح الرابط ويدوس Start هيتربط، وهيوصلك إشعار على التليجرام.</p>
+    <div style="text-align:center;margin:12px 0"><div class="small">كود الدعوة (شغال 48 ساعة، لمرة واحدة)</div><div style="font-size:30px;font-weight:800;letter-spacing:6px;color:var(--navy);direction:ltr">${x.code}</div>${bot ? `<div class="small" dir="ltr">${esc(link)}</div>` : ''}</div>
+    <div class="note blue">⏳ اتأكد إن الحالة فوق بقت «محفوظ ✓» قبل ما يبعت الكود — عشان الدعوة توصل لجوجل الأول.</div>`,
+    `<a class="btn emer" href="https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">ابعتها واتساب</a><button class="btn" onclick="navigator.clipboard&&navigator.clipboard.writeText(${esc(JSON.stringify(msg))}).then(()=>toast('اتنسخت ✓','ok'))">📋 انسخ الرسالة</button><button class="btn" onclick="closeModal()">قفل</button>`);
+}
+function memberSet(id, patch) { const m = byId(D.members, id); if (!m) return; commit([put('members', Object.assign(clone(m), patch))], 'اتحفظ ✓', { flash: id }); }
+function memberDel(id) { const m = byId(D.members, id); askYesNo('مسح ' + m.name, `${esc(m.name)} مش هيقدر يسجل من البوت تاني. الحركات اللي سجّلها هتفضل زي ما هي.`, () => commit([del('members', id)], 'اتمسح (في السلة)'), '🗑 امسح', true); }
 function mvalEl(el) { return el.value.startsWith('=') ? r2(safeEvalFormula(el.value.slice(1))) : r2(num(el.value)); }
 function showLinkInput() { $('#linkBox').hidden = false; $('#linkCode').focus(); }
 function tgSection(tg) {
@@ -134,7 +187,7 @@ function tgSection(tg) {
   }
   return h + how;
 }
-async function tgLoad() { if (!CFG) return; UI.tgLoading = true; try { const j = await api('tg_status'); UI.tg = j.tg; } catch (e) { UI.tg = { err: e.message || e.code }; } UI.tgLoading = false; if (UI.view === 'settings' && !modalOpen()) { const c = $('#tgCard .card-b'); if (c) c.innerHTML = tgSection(UI.tg); else render(); } }
+async function tgLoad() { if (!CFG) return; UI.tgLoading = true; try { const j = await api('tg_status'); UI.tg = j.tg; } catch (e) { UI.tg = { err: e.message || e.code }; } UI.tgLoading = false; if (UI.view === 'settings' && !modalOpen()) { const c = $('#tgCard .card-b'); if (c) { c.innerHTML = tgSection(UI.tg); render(); } else render(); } }
 async function tgSetup() {
   const token = sval('tgTok'); if (!token) return toast('حط التوكن الأول', 'err');
   toast('بيربط البوت…');

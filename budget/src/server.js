@@ -195,25 +195,89 @@ function tgWebhook_(e) {
 
   var chat = P.getProperty('TG_CHAT');
   if (u.callback_query) {
-    var q = u.callback_query;
-    if (String(q.message.chat.id) !== chat) return;
-    return withLock_(function () { tgCallback_(q); });
+    var q = u.callback_query, qf = String(q.message.chat.id);
+    if (qf === chat) return withLock_(function () { tgCallback_(q, null); });
+    return withLock_(function () { var mem = memberByChat_(load_(), qf); if (mem) tgCallback_(q, mem); });
   }
   var m = u.message; if (!m || !m.chat) return;
   var text = String(m.text || '').trim(), from = String(m.chat.id);
-  if (from !== chat) {
+  if (from === chat) {
+    if (!text) { tgSend_('ابعت المبلغ والبند كتابة، مثلاً: 150 بنزين'); return; }
+    return withLock_(function () { tgText_(text); });
+  }
+  withLock_(function () {
+    var D = load_(), mem = memberByChat_(D, from), got = toEnDigits(text).replace(/\D/g, '');
+    if (mem) { if (!text) return tgTo_(from, 'ابعت المبلغ والبند كتابة، مثلاً: 150 بنزين'); return memberText_(D, mem, text); }
+    // كود دعوة شريك
+    var inv = got.length === 6 ? D.invites.filter(function (x) { return x.code === got && +x.exp > Date.now(); })[0] : null;
+    if (inv && !D.members.some(function (x) { return x.code === got; })) {
+      var who = [m.chat.first_name, m.chat.last_name].filter(Boolean).join(' ');
+      var nm = { id: uid('m'), name: inv.name || who || 'شريك', chat: from, tgName: who, code: got, acc: inv.acc || D.settings.defAcc, notify: true, see: !!inv.see, at: nowCairo(), u: Date.now() };
+      applyOp(D, { act: 'put', col: 'members', item: nm });
+      applyOp(D, { act: 'del', col: 'invites', id: inv.id, at: nowCairo() });
+      save_(D);
+      tgTo_(from, 'أهلاً ' + nm.name + ' 👋 اتربطت بـ «' + APP_NAME + '» ✓\n\n' + memberHelp_(nm));
+      tgSend_('👥 ' + nm.name + (who && who !== nm.name ? ' (' + who + ')' : '') + ' اتربط بالبوت وبقى يقدر يسجل مصاريف.');
+      return;
+    }
+    // ربط صاحب الحساب نفسه
     var pr = (P.getProperty('TG_PAIR') || '').split('|');
-    var got = toEnDigits(text).replace(/\D/g, '');
     if (pr[0] && got === pr[0] && Date.now() < +pr[1]) {
       P.setProperty('TG_CHAT', from); P.deleteProperty('TG_PAIR');
       tgSend_('أهلاً 👋 البوت اتربط بـ «' + APP_NAME + '» ✓\n\n' + helpText_());
-    } else {
-      tg_('sendMessage', { chat_id: from, text: chat ? 'البوت ده خاص.' : 'ابعت كود الربط اللي ظاهر في البرنامج (الإعدادات ← التليجرام).' });
+      return;
     }
-    return;
+    tgTo_(from, chat ? 'البوت ده خاص. لو حد بعتلك كود دعوة ابعته هنا (6 أرقام).' : 'ابعت كود الربط اللي ظاهر في البرنامج (الإعدادات ← التليجرام).');
+  });
+}
+function tgTo_(chatId, text, extra) { return tg_('sendMessage', Object.assign({ chat_id: chatId, text: String(text).slice(0, 4000), disable_web_page_preview: true }, extra || {})); }
+function memberByChat_(D, chatId) { return D.members.filter(function (x) { return String(x.chat) === String(chatId) && !x.off; })[0] || null; }
+function memberHelp_(mem) {
+  return ['سجّل أي مصروف برسالة عادية:', '• 150 بنزين', '• 85+40 اكل امبارح', '• صرفت 2 الف ايجار', '',
+    'وفيه أوامر:', '/today اللي سجلته النهارده', '/last آخر اللي سجلته', '/undo امسح آخر حاجة سجلتها'].concat(mem.see ? ['/budget الميزانية'] : []).join('\n');
+}
+/* شريك: بيسجل مصاريف بس، وبيشوف اللي سجّله هو بس (والميزانية لو مسموحله) */
+function memberText_(D, mem, text) {
+  var today = todayCairo(), cd = cycleDayOf(D), t = normAr(text).replace(/^\//, '').split('@')[0];
+  var cmd = { start: 'help', help: 'help', 'مساعده': 'help', today: 'today', 'النهارده': 'today', last: 'last', 'اخر': 'last', undo: 'undo', 'تراجع': 'undo', budget: 'budget', 'الميزانيه': 'budget', balance: 'owner', 'الرصيد': 'owner', month: 'owner', 'الشهر': 'owner', forecast: 'owner', 'توقع': 'owner', bills: 'owner', 'الالتزامات': 'owner' }[t];
+  var mine = D.tx.filter(function (x) { return x.by === mem.id; });
+  if (cmd === 'help') return tgTo_(mem.chat, memberHelp_(mem));
+  if (cmd === 'today') {
+    var L = mine.filter(function (x) { return x.date === today; }), sum = 0; L.forEach(function (x) { sum += r2(x.amount); });
+    return tgTo_(mem.chat, L.length ? ['🗓 اللي سجلته النهارده:', ''].concat(L.map(function (x) { return txLine_(D, x, true); })).concat(['', 'الإجمالي: ' + fmtMoney(sum)]).join('\n') : 'لسه ماسجلتش حاجة النهارده.');
   }
-  if (!text) { tgSend_('ابعت المبلغ والبند كتابة، مثلاً: 150 بنزين'); return; }
-  withLock_(function () { tgText_(text); });
+  if (cmd === 'last') {
+    var lt = mine.slice().sort(function (a, b) { return (b.at || '') < (a.at || '') ? -1 : 1; }).slice(0, 10);
+    return tgTo_(mem.chat, lt.length ? ['آخر اللي سجلته:', ''].concat(lt.map(function (x) { return dsp(x.date) + ' — ' + txLine_(D, x, true); })).join('\n') : 'لسه ماسجلتش حاجة.');
+  }
+  if (cmd === 'undo') {
+    var lastMine = mine.sort(function (a, b) { return (b.at || '') < (a.at || '') ? -1 : 1; })[0];
+    if (!lastMine) return tgTo_(mem.chat, 'مفيش حاجة سجلتها أرجع فيها.');
+    applyOp(D, { act: 'del', col: 'tx', id: lastMine.id, at: nowCairo() }); save_(D);
+    if (mem.notify) tgSend_('👤 ' + mem.name + ' شال: ' + txLine_(D, lastMine, true));
+    return tgTo_(mem.chat, '↩ اتشالت: ' + txLine_(D, lastMine, true));
+  }
+  if (cmd === 'budget') {
+    if (!mem.see) return tgTo_(mem.chat, 'الأمر ده مش متاح ليك.');
+    var c = cycleOf(today, cd), rows = budgetRows(D, c).filter(function (r) { return r.budget > 0; });
+    return tgTo_(mem.chat, rows.length ? ['🎯 الميزانية — ' + cycleName(c, cd), ''].concat(rows.map(function (r) { return (r.spent > r.budget ? '🔴' : r.pct >= 80 ? '🟠' : '🟢') + ' ' + r.cat.name + ': فاضل ' + fmtMoney(r.left); })).join('\n') : 'مفيش ميزانية متحددة.');
+  }
+  if (cmd) return tgTo_(mem.chat, 'الأمر ده لصاحب الحساب بس. ابعت /help');
+  var r = parseBotText(D, text, today);
+  if (!r) return tgTo_(mem.chat, 'مافهمتش 🙏 ابعت المبلغ والبند، مثلاً:\n150 بنزين');
+  if (r.kind !== 'exp') return tgTo_(mem.chat, 'تقدر تسجل مصاريف بس. ابعت مثلاً: 150 بنزين');
+  var accKw = matchScore(normAr(text), [].concat.apply([], D.accounts.map(function (a) { return [a.name].concat(String(a.kw || '').split(/[,،]/)); })));
+  var tx = { id: uid('t'), date: r.date, kind: 'exp', amount: r.amount, cat: r.cat, acc: accKw ? r.acc : (mem.acc || r.acc), note: r.note, via: 'telegram', by: mem.id, at: nowCairo(), u: Date.now() };
+  applyOp(D, { act: 'put', col: 'tx', item: tx }); save_(D);
+  var reply = ['✅ اتسجل: ' + txLine_(D, tx, true) + (r.date !== today ? ' — بتاريخ ' + dsp(r.date) : '')];
+  if (mem.see) {
+    var br = budgetRows(D, cycleOf(tx.date, cd)).filter(function (x) { return x.cat.id === tx.cat; })[0];
+    if (br && br.budget) reply.push((br.spent > br.budget ? '🔴 الميزانية عدّت في ' : '🟢 فاضل في ') + br.cat.name + ': ' + fmtMoney(Math.abs(br.left)));
+  }
+  if (r.guessed) reply.push('', '❔ مالقيتش القسم — اختار من «غيّر القسم».');
+  tgTo_(mem.chat, reply.join('\n'), { reply_markup: { inline_keyboard: [[{ text: '↩ تراجع', callback_data: 'u:' + tx.id }, { text: '🏷 غيّر القسم', callback_data: 'cc:' + tx.id }]] } });
+  if (mem.notify) tgSend_('👤 ' + mem.name + ' سجّل: ' + txLine_(D, tx) + (r.date !== today ? ' (' + dsp(r.date) + ')' : ''), { reply_markup: txKeyboard_(tx) });
+  try { instantAlerts_(D, [tx]); } catch (e) { logErr_('alerts', e); }
 }
 function helpText_() {
   return ['سجّل أي مصروف أو دخل برسالة عادية:',
@@ -264,7 +328,7 @@ function tgText_(text) {
     return tgSend_(lt.length ? ['آخر الحركات:', ''].concat(lt.map(function (x) { return dsp(x.date) + ' — ' + txLine_(D, x); })).join('\n') : 'مفيش حركات لسه.');
   }
   if (cmd === 'undo') {
-    var mine = D.tx.filter(function (x) { return x.via === 'telegram'; }).sort(function (a, b) { return (b.at || '') < (a.at || '') ? -1 : 1; })[0];
+    var mine = D.tx.filter(function (x) { return x.via === 'telegram' && !x.by; }).sort(function (a, b) { return (b.at || '') < (a.at || '') ? -1 : 1; })[0];
     if (!mine) return tgSend_('مفيش حركة من البوت أرجع فيها.');
     applyOp(D, { act: 'del', col: 'tx', id: mine.id, at: nowCairo() }); save_(D);
     return tgSend_('↩ اتشالت: ' + txLine_(D, mine) + '\n(موجودة في سلة المحذوفات في البرنامج لو عايز ترجعها)');
@@ -288,7 +352,12 @@ function txKeyboard_(tx) {
   if (tx.kind !== 'xfer') row.push({ text: '🏷 غيّر القسم', callback_data: 'cc:' + tx.id }, { text: '🏦 الحساب', callback_data: 'ca:' + tx.id });
   return { inline_keyboard: [row] };
 }
-function txLine_(D, t) {
+function txLine_(D, t, short) {
+  if (t.kind === 'exp' && short) { var kk = catOf(D, t.cat); return fmtMoney(t.amount) + ' — ' + kk.icon + ' ' + kk.name + (t.note && normAr(t.note) !== normAr(kk.name) ? ' · ' + t.note : ''); }
+  var by = t.by ? ' 👤' + memberOf(D, t.by).name : '';
+  return txLine0_(D, t) + by;
+}
+function txLine0_(D, t) {
   if (t.kind === 'adj') return '⚖️ تسوية رصيد ' + fmtMoney(t.amount) + ' (' + accOf(D, t.acc).name + ')';
   if (t.kind === 'xfer') return '🔁 تحويل ' + fmtMoney(t.amount) + ' من ' + accOf(D, t.acc).name + ' لـ ' + accOf(D, t.to).name;
   var k = catOf(D, t.cat);
@@ -299,15 +368,16 @@ function spendLine_(D, today) {
   if (!D.tx.length || s.avail === null) return '';
   return s.avail > 0 ? '💡 تقدر تصرف حوالي ' + fmtMoney(s.perDay) + ' في اليوم لحد ' + dsp(s.p.c.end) : '⚠️ المتاح لآخر الدورة خلص (' + fmtMoney(s.avail) + ')';
 }
-function tgCallback_(q) {
+function tgCallback_(q, mem) {
   var D = load_(), parts = String(q.data || '').split(':'), act = parts[0], tx = byId(D.tx, parts[1]);
   var mid = q.message.message_id, chat = q.message.chat.id;
+  if (mem && tx && (tx.by !== mem.id || act === 'ca' || act === 'sa')) { tg_('answerCallbackQuery', { callback_query_id: q.id, text: 'مش مسموح' }); return; }
   function done(note, text, kb) {
     tg_('answerCallbackQuery', { callback_query_id: q.id, text: note || '' });
     if (text) tg_('editMessageText', Object.assign({ chat_id: chat, message_id: mid, text: text }, kb ? { reply_markup: kb } : {}));
   }
   if (!tx) return done('الحركة دي مش موجودة (يمكن اتمسحت)');
-  if (act === 'u') { applyOp(D, { act: 'del', col: 'tx', id: tx.id, at: nowCairo() }); save_(D); return done('اتشالت', '↩ اتشالت: ' + txLine_(D, tx)); }
+  if (act === 'u') { applyOp(D, { act: 'del', col: 'tx', id: tx.id, at: nowCairo() }); save_(D); if (mem && mem.notify) tgSend_('👤 ' + mem.name + ' شال: ' + txLine_(D, tx, true)); return done('اتشالت', '↩ اتشالت: ' + txLine_(D, tx, !!mem)); }
   if (act === 'cc' || act === 'ca') {
     var items = act === 'cc' ? D.cats.filter(function (c) { return c.kind === tx.kind && !c.archived; }) : D.accounts.filter(function (a) { return !a.archived; });
     var kb = [], row = [];
@@ -318,6 +388,7 @@ function tgCallback_(q) {
   if (act === 'sc' || act === 'sa') {
     var n = JSON.parse(JSON.stringify(tx)); if (act === 'sc') n.cat = parts[2]; else n.acc = parts[2]; n.u = Date.now();
     applyOp(D, { act: 'put', col: 'tx', item: n }); save_(D);
+    if (mem) return done('اتعدّلت ✓', '✅ اتسجل: ' + txLine_(D, n, true), { inline_keyboard: [[{ text: '↩ تراجع', callback_data: 'u:' + n.id }, { text: '🏷 غيّر القسم', callback_data: 'cc:' + n.id }]] });
     return done('اتعدّلت ✓', '✅ اتسجل: ' + txLine_(D, n), txKeyboard_(n));
   }
   done();
@@ -339,7 +410,7 @@ function instantAlerts_(D, newTx) {
   if (!P.getProperty('TG_CHAT')) return;
   var A = D.settings.alerts, today = todayCairo(), cd = cycleDayOf(D), c = cycleOf(today, cd), msgs = [];
   newTx.forEach(function (t) {
-    if (t.kind !== 'exp' || t.via === 'telegram' || t.date < c.start) return;
+    if (t.kind !== 'exp' || (t.via === 'telegram' && !t.by) || t.date < c.start) return;
     if (A.budget) {
       var r = budgetRows(D, c).filter(function (x) { return x.cat.id === t.cat; })[0];
       if (r && r.budget > 0) {
@@ -409,9 +480,9 @@ function exportSheet_() {
   ss.setSpreadsheetLocale('ar_EG');
   function sheet(name) { var sh = ss.getSheetByName(name) || ss.insertSheet(name); sh.clear(); sh.setRightToLeft(true); return sh; }
   var KIND = { exp: 'مصروف', inc: 'دخل', xfer: 'تحويل', save: 'للهدف', unsave: 'من الهدف', adj: 'تسوية رصيد' };
-  var rows = [['التاريخ', 'النوع', 'المبلغ', 'القسم', 'الحساب', 'لحساب', 'ملاحظة', 'من']];
+  var rows = [['التاريخ', 'النوع', 'المبلغ', 'القسم', 'الحساب', 'لحساب', 'ملاحظة', 'من', 'سجّلها']];
   D.tx.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; }).forEach(function (t) {
-    rows.push([t.date, KIND[t.kind] || t.kind, r2(t.amount), t.cat ? catOf(D, t.cat).name : '', accOf(D, t.acc).name, t.to ? accOf(D, t.to).name : '', t.note || '', t.via === 'telegram' ? 'تليجرام' : t.via === 'auto' ? 'تلقائي' : 'البرنامج']);
+    rows.push([t.date, KIND[t.kind] || t.kind, r2(t.amount), t.cat ? catOf(D, t.cat).name : '', accOf(D, t.acc).name, t.to ? accOf(D, t.to).name : '', t.note || '', t.via === 'telegram' ? 'تليجرام' : t.via === 'auto' ? 'تلقائي' : 'البرنامج', t.by ? memberOf(D, t.by).name : 'أنا']);
   });
   var sh = sheet('الحركات'); sh.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
   sh.getRange(1, 1, 1, rows[0].length).setFontWeight('bold').setBackground('#1B3A5C').setFontColor('#ffffff'); sh.setFrozenRows(1);
