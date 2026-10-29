@@ -1340,7 +1340,8 @@ function normalizeAcc(a) {
   a.closings = (a.closings || []).map(c => ({
     id: c.id || uid(), date: c.date || '', carried: num(c.carried), computed: num(c.computed),
     diff: num(c.diff), adjAt: num(c.adjAt), note: c.note || '', at: c.at || '',
-    rows: Array.isArray(c.rows) ? c.rows.slice() : []
+    rows: Array.isArray(c.rows) ? c.rows.slice() : [],
+    payIds: Array.isArray(c.payIds) ? c.payIds.slice() : []      // السداد اللي اتسجل مع التصفية
   }));
   a.items = (a.items || []).map(i => ({
     id: i.id || uid(), date: i.date || '', desc: i.desc || '', loc: i.loc || '',
@@ -1948,7 +1949,7 @@ function openLedger(a) {
     bal += rowDelta(a, r);
     r.bal = bal;
     /* حركة قديمة اتسجلت بعد ما الحساب اتصفّى */
-    r.late = !!(r.date && cl.date && r.date <= cl.date);
+    r.late = !!(r.date && cl.date && r.date <= cl.date) && (cl.payIds || []).indexOf(r.id) < 0;
   });
   /* لو التسوية العامة على الحساب اتغيّرت بعد التصفية، نوريها كسطر لوحدها */
   const extra = num(a.adjust) - num(cl.adjAt);
@@ -2033,6 +2034,7 @@ function openClosing(pid, aid) {
         <option value="us" ${cur < 0 ? 'selected' : ''}>لنا عنده</option></select></div>
     <div id="clDiff" style="font-size:13px;margin:4px 0 10px"></div>
     <div id="clWarn"></div>
+    ${clPayFields('cl', pid)}
     <div class="f"><label>ملاحظة على التصفية</label>
       <input id="clNote" placeholder="مثال: تسوية آخر الحساب ماعدا الأوتار"></div>
     <div class="hint-k">عدد الحركات اللي هتتطوى: <b id="clCount">—</b></div>`,
@@ -2057,6 +2059,12 @@ function closingCalc() {
       (diff > 0 ? '(زيادة له)' : '(خصم من حسابه)') + '</span>';
   /* أهم تحذير في الشاشة دي: الفرق ده بيتشطب، مابيتحسبش فلوس اتدفعت.
      لو الفلوس اتدفعت فعلاً لازم تتسجل سداد عشان تدخل في مصروف المشروع. */
+  /* ☐ ودفعتله / واسترديته */
+  const pl = $('#clPayLbl'), pb = $('#clPayBox'), pr = $('#clPayRes');
+  if (pl) pl.textContent = want < 0 ? 'واسترديت الرقم ده منه دلوقتي' : 'ودفعتله الرقم ده دلوقتي';
+  if (pb) pb.style.display = clPayOn('cl') ? 'block' : 'none';
+  if (pr) pr.innerHTML = Math.abs(want) < 0.5 ? 'الرقم المتفق عليه صفر — مفيش سداد يتسجل.'
+    : `هيتسجل <b>${want > 0 ? 'سداد' : 'استرداد'} <span class="num">${fmt2(Math.abs(want))}</span> ج.م</b> يوم التصفية في الحساب ده (مشروع ${esc(accProject(a))})، ويدخل في الخزنة ومصروف المشروع — <b>والحساب يبقى صفر</b>.`;
   const wv = $('#clWarn');
   if (!wv) return;
   if (diff >= -0.5) { wv.innerHTML = ''; return; }
@@ -2086,6 +2094,31 @@ function closingToPayment(amt) {
     }, 60);
   }, 60);
 }
+/* ================= التصفية + السداد ================= */
+function clPayFields(pfx, pid) {
+  return `<div style="border:1px solid #86EFAC;background:#F0FDF4;border-radius:10px;padding:10px 12px;margin-bottom:10px">
+    <label style="display:flex;gap:8px;align-items:center;font-weight:800;cursor:pointer;color:#14532D">
+      <input type="checkbox" id="${pfx}Pay" style="width:auto" onchange="${pfx === 'cl' ? 'closingCalc' : 'partyClosingCalc'}()">
+      <span id="${pfx}PayLbl">ودفعتله الرقم ده دلوقتي</span></label>
+    <div id="${pfx}PayBox" style="display:none;margin-top:8px">
+      <div class="grid2">
+        <div class="f"><label>طريقة الدفع</label><select id="${pfx}Method">${METHOD_STD.map(m => `<option${m === 'انستاباي' ? ' selected' : ''}>${esc(m)}</option>`).join('')}</select></div>
+        <div class="f"><label>اتسلمها مين (اختياري)</label><input id="${pfx}Recv" list="${pfx}RecvL" placeholder="لو حد غير ${esc(findParty(pid).name)}">
+          <datalist id="${pfx}RecvL">${knownReceivers(pid).slice(0, 40).map(r => `<option>${esc(r)}</option>`).join('')}</datalist></div>
+      </div>
+      <div id="${pfx}PayRes" style="font-size:12.5px;color:#14532D;line-height:1.8"></div>
+    </div></div>`;
+}
+/* السداد اللي هيتسجل مع التصفية: + سداد لـه، − استرداد منه */
+function clPayRow(amount, d, pfx) {
+  const m = sval(pfx + 'Method') || 'انستاباي';
+  return {
+    id: uid(), date: d, amount: Math.round(amount * 100) / 100, method: m, treasury: methodTreasury(m),
+    recv: sval(pfx + 'Recv'), kind: 'pay', note: amount > 0 ? 'سداد نهائي — تصفية الحساب' : 'استرداد — تصفية الحساب',
+    floor: '', cheque: '', photo: '', link: ''
+  };
+}
+function clPayOn(pfx) { return !!($('#' + pfx + 'Pay') && $('#' + pfx + 'Pay').checked); }
 function closingWanted() {
   const v = Math.abs(mval('clAgreed'));
   const dir = ($('#clDir') || {}).value || 'him';
@@ -2100,19 +2133,31 @@ function saveClosing(pid, aid) {
   const keys = foldKeys(a, d);
   snapshot();
   if (Math.abs(diff) > 0.5) a.adjust = num(a.adjust) + diff;
-  a.closings.push({
+  const clo = {
     id: uid(), date: d, carried: want, computed: cur, diff: Math.abs(diff) > 0.5 ? diff : 0,
-    adjAt: num(a.adjust), note, at: new Date().toISOString(), rows: keys
-  });
+    adjAt: num(a.adjust), note, at: new Date().toISOString(), rows: keys, payIds: []
+  };
+  a.closings.push(clo);
+  let paid = '';
+  if (clPayOn('cl') && Math.abs(want) > 0.5) {
+    const y = clPayRow(want, d, 'cl');
+    a.payments.push(y); clo.payIds.push(y.id);
+    logAction('payment', (want > 0 ? 'سداد' : 'استرداد') + ' مع تصفية ' + p.name + ' / ' + a.name + ' — ' + fmt(Math.abs(want)) + ' — ' + y.method);
+    paid = want > 0 ? ' واتسجل سداده — الحساب بقى صفر' : ' واتسجل استرداده — الحساب بقى صفر';
+  }
   UI.showClosed = false;
   save(); closeModal(); render();
-  toast('اتصفّى الحساب — الرصيد المرحّل ' + fmt(Math.abs(want)) + ' ج.م', 'ok');
+  toast('اتصفّى الحساب — ' + (paid ? fmt(Math.abs(want)) + ' ج.م' + paid : 'الرصيد المرحّل ' + fmt(Math.abs(want)) + ' ج.م'), 'ok');
 }
 function undoClosing(pid, aid) {
   const p = findParty(pid), a = findAcc(p, aid), cl = lastClosing(a); if (!cl) return;
-  askYesNo('فك التصفية', 'هيرجع الحساب القديم كله ظاهر تاني، والتسوية اللي اتسجلت وقت التصفية (' +
-    fmt(Math.abs(num(cl.diff))) + ' ج.م) هتترفع. تكمّل؟', () => {
+  const cp = a.payments.filter(y => (cl.payIds || []).indexOf(y.id) > -1);
+  const cpAmt = cp.reduce((t, y) => t + num(y.amount), 0);
+  askYesNo('فك التصفية', 'هيرجع الحساب القديم كله ظاهر تاني' +
+    (Math.abs(num(cl.diff)) > 0.5 || !cp.length ? '، والتسوية اللي اتسجلت وقت التصفية (' + fmt(Math.abs(num(cl.diff))) + ' ج.م) هتترفع' : '') +
+    (cp.length ? '، و' + (cpAmt < 0 ? 'الاسترداد' : 'السداد') + ' اللي اتسجل مع التصفية (' + fmt(Math.abs(cpAmt)) + ' ج.م) هيتشال كمان' : '') + '. تكمّل؟', () => {
       snapshot();
+      if (cp.length) { a.payments = a.payments.filter(y => cp.indexOf(y) < 0); logAction('payment', 'شيل سداد التصفية مع فكها: ' + p.name + ' / ' + a.name + ' — ' + fmt(Math.abs(cpAmt))); }
       if (Math.abs(num(cl.diff)) > 0.5) a.adjust = num(a.adjust) - num(cl.diff);
       a.closings = a.closings.filter(c => c.id !== cl.id);
       UI.showClosed = false;
@@ -2144,8 +2189,9 @@ function openPartyClosing(pid) {
         <option value="him" ${tot >= 0 ? 'selected' : ''}>له عندنا</option>
         <option value="us" ${tot < 0 ? 'selected' : ''}>لنا عنده</option></select></div>
     <div class="f"><label>الفرق يتسجل على حساب</label>
-      <select id="pcAcc">${accs.slice().sort((x, y) => Math.abs(balAt(y, d)) - Math.abs(balAt(x, d))).map(a => `<option value="${a.id}">${esc(a.name)} — ${fmt2(balState(balAt(a, d)).v)} ${balState(balAt(a, d)).txt}</option>`).join('')}</select></div>
+      <select id="pcAcc" onchange="partyClosingCalc()">${accs.slice().sort((x, y) => Math.abs(balAt(y, d)) - Math.abs(balAt(x, d))).map(a => `<option value="${a.id}">${esc(a.name)} — ${fmt2(balState(balAt(a, d)).v)} ${balState(balAt(a, d)).txt}</option>`).join('')}</select></div>
     <div id="pcDiff" style="font-size:13px;margin:4px 0 10px"></div>
+    ${clPayFields('pc', pid)}
     <div class="f"><label>ملاحظة</label><input id="pcNote" placeholder="مثال: تسوية آخر الحساب"></div>
     <div class="hint-k">عدد الحسابات اللي هتتصفّى: <b>${accs.length}</b>${skipped ? ' · و<b>' + skipped + '</b> حساب هيتسابوا زي ما هم (خالص أو تحت الحساب من غير اتفاق)' : ''}</div>`,
     `<button class="btn navy" onclick="savePartyClosing('${pid}')">صفّي كل الحسابات</button>
@@ -2165,6 +2211,29 @@ function partyClosingCalc() {
   if (dv) dv.innerHTML = Math.abs(diff) < 0.5
     ? '<span style="color:var(--emer)">✓ نفس الإجمالي المحسوب — مفيش فرق</span>'
     : '<span style="color:var(--amber)">فرق قدره <b class="num">' + fmt2(Math.abs(diff)) + '</b> هيتسجل على الحساب اللي اخترته</span>';
+  /* ☐ ودفعتله: كل حساب بالباقي بتاعه في مشروعه */
+  const want = (dir === 'us' ? -v : v);
+  const pl = $('#pcPayLbl'), pb = $('#pcPayBox'), pr = $('#pcPayRes');
+  if (pl) pl.textContent = want < 0 ? 'واسترديت الرقم ده منه دلوقتي' : 'ودفعتله الرقم ده دلوقتي';
+  if (pb) pb.style.display = clPayOn('pc') ? 'block' : 'none';
+  if (pr) {
+    const plan = pcPayPlan(p, d, diff);
+    pr.innerHTML = !plan.length ? 'كل الحسابات رصيدها صفر — مفيش سداد يتسجل.' :
+      `كل حساب هيتسجل له ${plan.some(x => x.amt < 0) ? 'سداد (أو استرداد)' : 'سداد'} بالباقي بتاعه يوم التصفية — فيدخل في مشروعه، <b>وكل الحسابات تبقى صفر</b>:
+      <table style="width:100%;font-size:12.5px;margin-top:6px;background:#fff;border-radius:8px"><thead><tr>
+        <th style="text-align:start">الحساب</th><th style="text-align:start">المشروع</th><th class="num">المبلغ</th></tr></thead><tbody>
+        ${plan.map(x => `<tr><td>${esc(x.a.name)}</td><td>${esc(accProject(x.a))}</td><td class="num">${x.amt < 0 ? 'استرداد ' : ''}${fmt2(Math.abs(x.amt))}</td></tr>`).join('')}
+      </tbody><tfoot><tr style="font-weight:800"><td colspan="2">${want < 0 ? 'صافي اللي هيرجع' : 'صافي اللي هيتدفع'}</td><td class="num">${fmt2(Math.abs(plan.reduce((t, x) => t + x.amt, 0)))}</td></tr></tfoot></table>`;
+  }
+}
+/* السداد لكل حساب في تصفية الحساب كله = رصيده يوم التصفية (+ الفرق لو هو الحساب اللي اخترته) */
+function pcPayPlan(p, d, diff) {
+  const target = ($('#pcAcc') || {}).value;
+  return p.accounts.filter(canClose).filter(a => foldCount(a, d)).map(a => {
+    let amt = balAt(a, d);
+    if (a.id === target && Math.abs(diff) > 0.5) amt += diff;
+    return { a, amt: Math.round(amt * 100) / 100 };
+  }).filter(x => Math.abs(x.amt) > 0.5);
 }
 function savePartyClosing(pid) {
   const p = findParty(pid); if (!p) return;
@@ -2175,8 +2244,9 @@ function savePartyClosing(pid) {
   const diff = (dir === 'us' ? -v : v) - tot;
   const target = ($('#pcAcc') || {}).value || (accs[0] || {}).id;
   const note = ($('#pcNote') || {}).value || '';
+  const payOn = clPayOn('pc'), plan = payOn ? pcPayPlan(p, d, diff) : [];
   snapshot();
-  let done = 0;
+  let done = 0, nPay = 0;
   accs.forEach(a => {
     if (!foldCount(a, d)) return;
     const keys = foldKeys(a, d);
@@ -2185,13 +2255,19 @@ function savePartyClosing(pid) {
     a.closings.push({
       id: uid(), date: d, carried, computed: carried - (a.id === target ? diff : 0),
       diff: a.id === target && Math.abs(diff) > 0.5 ? diff : 0,
-      adjAt: num(a.adjust), note, at: new Date().toISOString(), rows: keys
+      adjAt: num(a.adjust), note, at: new Date().toISOString(), rows: keys, payIds: []
     });
+    const pp = plan.find(x => x.a === a);
+    if (pp) {
+      const y = clPayRow(pp.amt, d, 'pc');
+      a.payments.push(y); a.closings[a.closings.length - 1].payIds.push(y.id); nPay++;
+      logAction('payment', (pp.amt > 0 ? 'سداد' : 'استرداد') + ' مع تصفية ' + p.name + ' كله / ' + a.name + ' — ' + fmt(Math.abs(pp.amt)) + ' — ' + y.method);
+    }
     done++;
   });
   UI.showClosed = false;
   save(); closeModal(); render();
-  toast('اتصفّى ' + done + ' حساب — المرحّل ' + fmt(Math.abs(dir === 'us' ? -v : v)) + ' ج.م', 'ok');
+  toast('اتصفّى ' + done + ' حساب — ' + (nPay ? fmt(Math.abs(dir === 'us' ? -v : v)) + ' ج.م واتسجل ' + nPay + ' سداد (كل حساب في مشروعه) — الحسابات بقت صفر' : 'المرحّل ' + fmt(Math.abs(dir === 'us' ? -v : v)) + ' ج.م'), 'ok');
 }
 
 /* كشف عن فترة: الرصيد الافتتاحي + الحركات داخل الفترة */
