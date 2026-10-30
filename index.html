@@ -385,11 +385,18 @@ body.printing #modalRoot,body.printing #ctxRoot,body.printing #toastRoot,body.pr
   .grid2,.grid3{grid-template-columns:1fr}
 }
 
+/* ================= نتايج البحث في صفحة المقاولين/الموردين ================= */
+.sr-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 10px;padding:6px 10px 10px}
+.sr-grid .res{margin:0}
+@media(max-width:900px){.sr-grid{grid-template-columns:1fr}}
 /* ================= الإعدادات ================= */
 .set-tabs{margin-top:4px}
 .set-tabs button{display:inline-flex;align-items:center;gap:7px}
 .set-body h1.page{font-size:18px}
-.theme-pick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.theme-pick{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.tprev .tclock{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:30px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))}
+.theme-times{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.theme-times .f{margin:0;width:170px}
 .theme-opt{border:2px solid var(--line);border-radius:14px;padding:12px;cursor:pointer;background:transparent;text-align:right;font-family:inherit;color:var(--ink);transition:.15s}
 .theme-opt:hover{border-color:#94A3B8}
 .theme-opt.on{border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,162,39,.18)}
@@ -577,8 +584,12 @@ tr.mob-pending td:first-child::after{content:' ⏳';font-size:12px}
 <script>
 /* الوضع الغامق قبل ما الصفحة ترسم — الاختيار على الجهاز ده بس */
 (function () { try {
-  var t = localStorage.getItem('tantawy_theme') || 'light';
-  if (t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark');
+  var t = localStorage.getItem('tantawy_theme') || 'light', dk = t === 'dark';
+  if (t === 'auto') dk = !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+  if (t === 'time') { var w = JSON.parse(localStorage.getItem('tantawy_theme_times') || '{}'), L = w.light || '06:00', D = w.dark || '18:00',
+    n = new Date(), h = ('0' + n.getHours()).slice(-2) + ':' + ('0' + n.getMinutes()).slice(-2);
+    dk = L === D ? false : (L < D ? !(h >= L && h < D) : (h >= D && h < L)); }
+  if (dk) document.documentElement.classList.add('dark');
 } catch (e) { } })();
 </script>
 <div class="app">
@@ -2761,12 +2772,37 @@ VIEWS.settings = () => settingsShell('settings', viewTheme());
 
 /* ---------- المظهر ---------- */
 function themeGet() { try { return localStorage.getItem('tantawy_theme') || 'light'; } catch (e) { return 'light'; } }
-function themeDark(t) { return t === 'dark' || (t === 'auto' && !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)); }
+function themeTimes() {
+  let w = {}; try { w = JSON.parse(localStorage.getItem('tantawy_theme_times') || '{}') || {}; } catch (e) { }
+  const ok = v => /^\d\d:\d\d$/.test(v || '');
+  return { light: ok(w.light) ? w.light : '06:00', dark: ok(w.dark) ? w.dark : '18:00' };
+}
+/* «حسب الوقت»: فاتح من ساعة الفاتح لحد ساعة الغامق، وغامق باقي اليوم (حتى لو الفترة معدّية نص الليل) */
+function themeByTime(now) {
+  const w = themeTimes(), n = now || new Date();
+  const h = String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0');
+  if (w.light === w.dark) return false;
+  return w.light < w.dark ? !(h >= w.light && h < w.dark) : (h >= w.dark && h < w.light);
+}
+function themeDark(t) {
+  if (t === 'time') return themeByTime();
+  return t === 'dark' || (t === 'auto' && !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches));
+}
+function themeTimesSet() {
+  const L = sval('thLight'), D = sval('thDark');
+  if (!/^\d\d:\d\d$/.test(L) || !/^\d\d:\d\d$/.test(D)) return toast('اكتب الساعة كاملة', 'err');
+  if (L === D) return toast('ساعة الفاتح لازم تختلف عن ساعة الغامق', 'err');
+  try { localStorage.setItem('tantawy_theme_times', JSON.stringify({ light: L, dark: D })); } catch (e) { }
+  themeApply(); render();
+  toast('اتحفظ — فاتح من ' + L + ' وغامق من ' + D + ' كل يوم ✓', 'ok');
+}
+/* وهو مفتوح: كل دقيقة نشوف الوقت جه ولا لأ */
+setInterval(() => { if (themeGet() === 'time') { const was = document.documentElement.classList.contains('dark'); themeApply(); if (was !== document.documentElement.classList.contains('dark') && UI.view === 'settings') render(); } }, 60000);
 function themeApply() { document.documentElement.classList.toggle('dark', setOn() && themeDark(themeGet())); }
 function themeSet(t) {
   try { localStorage.setItem('tantawy_theme', t); } catch (e) { }
   themeApply(); render();
-  toast(t === 'dark' ? 'الوضع الغامق اتفعّل 🌙' : t === 'auto' ? 'المظهر هيمشي مع ويندوز' : 'الوضع الفاتح ☀', 'ok');
+  toast(t === 'dark' ? 'الوضع الغامق اتفعّل 🌙' : t === 'auto' ? 'المظهر هيمشي مع ويندوز' : t === 'time' ? 'المظهر هيتغير لوحده حسب الوقت ⏰' : 'الوضع الفاتح ☀', 'ok');
 }
 try { if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (themeGet() === 'auto') themeApply(); }); } catch (e) { }
 function viewTheme() {
@@ -2781,7 +2817,15 @@ function viewTheme() {
       ${opt('light', '☀ فاتح', 'الشكل العادي', prev('l'))}
       ${opt('dark', '🌙 غامق', 'أريح للعين بالليل', prev('d'))}
       ${opt('auto', '🖥 تلقائي', 'زي إعداد ويندوز — بيتغير لوحده', `<div class="tprev a"><div>${prev('l')}</div><div class="dk">${prev('d')}</div></div>`)}
-    </div></div>`;
+      ${opt('time', '⏰ حسب الوقت', 'فاتح بالنهار وغامق بالليل — كل يوم لوحده', `<div class="tprev a"><div>${prev('l')}</div><div class="dk">${prev('d')}</div><span class="tclock">⏰</span></div>`)}
+    </div>
+    ${t === 'time' ? (() => { const w = themeTimes(), dk = themeByTime(); return `<div class="theme-times">
+      <div class="f"><label>☀ فاتح من الساعة</label><input type="time" id="thLight" value="${w.light}"></div>
+      <div class="f"><label>🌙 غامق من الساعة</label><input type="time" id="thDark" value="${w.dark}"></div>
+      <button class="btn navy" onclick="themeTimesSet()">حفظ المواعيد</button>
+      <div class="hint-k" style="flex-basis:100%">فاتح من <b>${w.light}</b> لحد <b>${w.dark}</b>، وغامق من <b>${w.dark}</b> لحد <b>${w.light}</b> تاني يوم — كل يوم لوحده، أول ما تفتح البرنامج وكمان وهو مفتوح.
+        دلوقتي: <b>${dk ? '🌙 غامق' : '☀ فاتح'}</b>.</div></div>`; })() : ''}
+    </div>`;
 }
 
 /* السطور في الدفتر: id → «بصمة» السطر من غير عمود الرصيد والأزرار (الرصيد بيتغير لكل اللي تحته لما تعدّل مبلغ) */
@@ -2847,6 +2891,20 @@ function rerenderList() {
   const box = $('#listBody');
   if (!box) return render();
   box.innerHTML = listRows();
+  const all = $('#listAll'); if (all) all.innerHTML = listAllHTML();
+}
+/* صفحة المقاولين/الموردين: نتايج البحث من البرنامج كله (غير اللي ظاهرين في الجدول) */
+function listAllHTML() {
+  const q = (UI.q || '').trim();
+  if (!q) return '';
+  const res = searchAll(q).filter(r => !(r.g === 'party' && r.ptype === UI.view));
+  if (!res.length) return `<div class="card pad no-print" style="margin-bottom:14px;font-size:13px;color:var(--mut)">🔎 مفيش حاجة تانية في البرنامج فيها «${esc(q)}»</div>`;
+  const show = res.slice(0, 12);
+  return `<div class="card no-print" style="margin-bottom:14px">
+    <div class="card-h"><span class="card-t">🔎 نتايج «${esc(q)}» من البرنامج كله</span><span class="chip gray">${res.length}${res.length >= 60 ? '+' : ''}</span>
+      <div class="spacer"></div>
+      ${res.length > show.length ? `<button class="btn sm" onclick="openSearch(${JSON.stringify(q).replace(/"/g, '&quot;')})">اعرض الكل</button>` : ''}</div>
+    <div class="sr-grid">${searchHTML(show, q)}</div></div>`;
 }
 
 /* ================= لوحة التحكم ================= */
@@ -3077,7 +3135,7 @@ function projTotalsByType(type) {
 function listRows() {
   const type = UI.view, q = (UI.q || '').trim();
   let arr = DB.parties.filter(p => p.type === type && !p._carry);
-  if (q) arr = arr.filter(p => (p.name + ' ' + p.trade + ' ' + p.note + ' ' + p.accounts.map(a => a.name + a.project).join(' ')).includes(q));
+  if (q) { const toks = srTokens(q); arr = arr.filter(p => srAll(toks, acNorm([p.name, p.trade, p.phone, p.note].concat(p.accounts.map(a => a.name + ' ' + a.project)).join(' ')))); }
   const pf = UI.filterProject || '';
   if (pf) arr = arr.filter(p => partyProjects(p).indexOf(pf) > -1);
   /* لما تختار مشروع، كل الأرقام في الشاشة بتبقى بتاعة المشروع ده بس */
@@ -3311,7 +3369,7 @@ function viewList() {
       <option value="">كل المشاريع</option>
       ${projs.map(n => `<option value="${esc(n)}" ${pf === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}
     </select>
-    <div class="search no-print"><input id="searchBox" placeholder="دور بالاسم أو الصنف أو الحساب…"></div>
+    <div class="search no-print"><input id="searchBox" placeholder="دور في البرنامج كله: اسم، حساب، بند، مبلغ…"></div>
     <select class="no-print" style="width:auto" onchange="UI.sortParty=this.value;render()" title="الترتيب">
       ${Object.entries(PARTY_SORTS).map(([k, v]) => `<option value="${k}" ${UI.sortParty === k ? 'selected' : ''}>ترتيب: ${v}</option>`).join('')}</select>
     <select class="no-print" style="width:auto" onchange="UI.filterParty=this.value;render()" title="التصفية">
@@ -3320,6 +3378,7 @@ function viewList() {
     <button class="btn no-print" onclick="exportExcel()">تصدير Excel</button>
     <button class="btn navy no-print" onclick="openParty(null,'${type}')">+ ${isC ? 'مقاول' : 'مورد'} جديد</button>
   </div>
+  <div id="listAll">${listAllHTML()}</div>
   ${pf ? `<div class="kpis">
     <div class="kpi navy"><div class="lbl">${lbl} في ${esc(pf)}</div><div class="val">${eg(gDues)}</div>
       <div class="hint">${(byProj[pf] || {}).parties || 0} ${isC ? 'مقاول' : 'مورد'} في المشروع ده</div></div>
@@ -10693,20 +10752,60 @@ function openSearch(seed) {
     '<button class="btn" onclick="closeModal()">إغلاق</button>', true);
   qsRun();
 }
+/* البحث في البرنامج كله: كل كلمة لازم تكون موجودة، من غير فرق همزات/تاء مربوطة/ياء/تشكيل/أرقام عربي */
+function srTokens(q) { return acNorm(q).split(' ').filter(Boolean); }
+function srNum(t) { return /^[\d.,]+$/.test(t) ? t.replace(/,/g, '') : ''; }
+/* كلمة بتطابق نص أو مبلغ (12500 = 12,500 = 12500.00) */
+function srTok(t, hay, amts) {
+  if (hay.indexOf(t) > -1) return true;
+  const n = srNum(t);
+  return !!n && (amts || []).some(a => { const v = num(a); return v && (String(Math.round(v * 100) / 100).indexOf(n) > -1 || String(Math.round(v)).indexOf(n) > -1); });
+}
+function srAll(toks, hay, amts) { return toks.every(t => srTok(t, hay, amts)); }
 function searchAll(q) {
-  const out = [];
+  const toks = srTokens(q), out = [];
+  if (!toks.length) return out;
+  const H = (...a) => acNorm(a.filter(Boolean).join(' '));
+  const typ = p => p.type === 'contractor' ? 'مقاول' : 'مورد';
   DB.parties.forEach(p => {
-    if ((p.name + ' ' + p.trade + ' ' + p.phone).includes(q))
-      out.push({ t: p.name, s: (p.type === 'contractor' ? 'مقاول' : 'مورد') + (p.trade ? ' · ' + p.trade : ''), i: p.type === 'contractor' ? '⛑' : '🚚', pid: p.id, aid: '' });
+    if (p._carry) return;
+    const ph = H(p.name, p.trade, p.phone, p.note);
+    if (srAll(toks, ph))
+      out.push({ g: 'party', t: p.name, s: typ(p) + (p.trade ? ' · ' + p.trade : '') + ' · الباقي ' + fmt(partyTotals(p).rem), i: p.type === 'contractor' ? '⛑' : '🚚', pid: p.id, aid: '', ptype: p.type });
     p.accounts.forEach(a => {
-      if ((a.name + ' ' + a.project + ' ' + a.note).includes(q))
-        out.push({ t: a.name, s: p.name + ' · ' + (a.project || 'غير محدد') + ' · الباقي ' + fmt(accRem(a)), i: '📁', pid: p.id, aid: a.id });
+      const own = H(a.name, a.project, a.note);
+      if (toks.some(t => own.indexOf(t) > -1) && srAll(toks, own + ' ' + ph))
+        out.push({ g: 'acc', t: a.name, s: typ(p) + ' ' + p.name + ' · ' + (a.project || 'غير محدد') + ' · الباقي ' + fmt(accRem(a)), i: '📁', pid: p.id, aid: a.id, ptype: p.type });
     });
   });
-  allMoves(m => (m.desc || '').includes(q) || fmt(m.amount).includes(q) || (m.method || '').includes(q)).slice(0, 25).forEach(m => {
-    out.push({ t: (m.desc || 'حركة') + ' — ' + fmt(m.amount) + ' ج.م', s: m.p.name + ' · ' + m.a.name + ' · ' + dsp(m.date), i: m.k === 'p' ? '💵' : '🧱', pay: m.k === 'p', pid: m.p.id, aid: m.a.id });
-  });
-  return out;
+  /* البنود والسدادات: لازم كلمة واحدة على الأقل تبقى في الحركة نفسها (مش بس اسم صاحبها) */
+  const mv = [];
+  DB.parties.forEach(p => p.accounts.forEach(a => {
+    if (a.refOnly) return;
+    const ctx = H(p.name, a.name);
+    a.items.forEach(i => {
+      const own = H(i.desc, i.loc, i.proj, i.unit, i.floor), amts = [i.amount, itemNet(i)];
+      if (toks.some(t => srTok(t, own, amts)) && srAll(toks, own + ' ' + ctx, amts))
+        mv.push({ g: 'move', date: i.date, t: (i.desc || 'بند') + ' — ' + fmt(itemNet(i)) + ' ج.م', s: p.name + ' · ' + a.name + (i.proj ? ' · ' + i.proj : '') + ' · ' + dsp(i.date), i: '🧱', pid: p.id, aid: a.id, ptype: p.type });
+    });
+    a.payments.forEach(y => {
+      const own = H(y.note, y.method, y.recv, y.cheque, y.floor), amts = [y.amount];
+      if (toks.some(t => srTok(t, own, amts)) && srAll(toks, own + ' ' + ctx, amts))
+        mv.push({ g: 'move', date: y.date, t: (y.note || (y.kind === 'advance' ? 'سلفة' : y.kind === 'sched' ? 'مستحق مؤجل' : 'سداد')) + ' — ' + fmt(y.amount) + ' ج.م', s: p.name + ' · ' + a.name + (y.method ? ' · ' + y.method : '') + ' · ' + dsp(y.date), i: '💵', pay: true, pid: p.id, aid: a.id, ptype: p.type });
+    });
+  }));
+  /* باقي البرنامج */
+  (DB.expenses || []).forEach(x => { const h = H(x.desc, x.cat, x.project, x.note, x.method);
+    if (srAll(toks, h, [x.amount])) mv.push({ g: 'other', date: x.date, t: (x.desc || x.cat) + ' — ' + fmt(x.amount) + ' ج.م', s: 'مصروف عمومي · ' + (x.project || x.cat) + ' · ' + dsp(x.date), i: '💳', view: 'expenses' }); });
+  (DB.income || []).forEach(x => { const h = H(x.desc, x.cat, x.client, x.project, x.note, x.method);
+    if (srAll(toks, h, [x.amount])) mv.push({ g: 'other', date: x.date, t: (x.desc || x.cat) + ' — ' + fmt(x.amount) + ' ج.م', s: 'إيراد · ' + (x.client || x.project || x.cat) + ' · ' + dsp(x.date), i: '💰', view: 'income' }); });
+  (DB.labor || []).forEach(w => { const h = H(w.name, w.role, w.project, w.note, w.phone);
+    if (srAll(toks, h)) out.push({ g: 'other', t: w.name, s: 'عامل يومية' + (w.role ? ' · ' + w.role : '') + (w.project ? ' · ' + w.project : ''), i: '👷', view: 'labor' }); });
+  (DB.custody || []).forEach(c => { const h = H(c.holder, c.project, c.note);
+    if (srAll(toks, h)) out.push({ g: 'other', t: 'عهدة ' + c.holder, s: (c.project || '') + (c.closed ? ' · مقفولة' : ' · مفتوحة'), i: '🎒', view: 'custody' }); });
+  projectNames().forEach(n => { if (n !== UNASSIGNED && srAll(toks, H(n))) out.push({ g: 'proj', t: 'مشروع ' + n, s: 'المشاريع', i: '🏗', view: 'projects' }); });
+  mv.sort((x, y) => (y.date || '0000').localeCompare(x.date || '0000'));
+  return out.concat(mv.slice(0, 60));
 }
 function searchHTML(out, q) {
   return out.length
