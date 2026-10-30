@@ -311,6 +311,7 @@ tr.projsub td:first-child{color:var(--mut);font-weight:700}
 tfoot tr.projgrand td{background:#FFFBEB;border-top:3px double var(--navy);font-size:14px}
 .projsum td.pn{font-weight:800;color:var(--navy)}
 @media print{tr.projhead td,tr.projsub td,tfoot tr.projgrand td{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+html.dark tr.flashrow,html.dark tr.flashrow td{animation-name:flashrowd !important}
 @keyframes flashrow{0%,45%{background:#FDE68A}100%{background:transparent}}
 tr.flashrow td{animation:flashrow 2.4s ease-out}
 #acHint{position:fixed;z-index:120;background:var(--slate);color:#E2E8F0;border-radius:8px;padding:4px 10px;font-size:12.5px;
@@ -382,6 +383,105 @@ body.printing #modalRoot,body.printing #ctxRoot,body.printing #toastRoot,body.pr
   .nav a{width:auto}
   .main{padding:16px 14px 50px}
   .grid2,.grid3{grid-template-columns:1fr}
+}
+
+/* ================= الإعدادات ================= */
+.set-tabs{margin-top:4px}
+.set-tabs button{display:inline-flex;align-items:center;gap:7px}
+.set-body h1.page{font-size:18px}
+.theme-pick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.theme-opt{border:2px solid var(--line);border-radius:14px;padding:12px;cursor:pointer;background:transparent;text-align:right;font-family:inherit;color:var(--ink);transition:.15s}
+.theme-opt:hover{border-color:#94A3B8}
+.theme-opt.on{border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,162,39,.18)}
+.theme-opt .tt{font-weight:800;font-size:14px;margin-top:10px;display:flex;align-items:center;gap:7px}
+.theme-opt .td{font-size:12px;color:var(--mut);margin-top:2px}
+.tprev{height:96px;border-radius:9px;overflow:hidden;display:flex;border:1px solid rgba(0,0,0,.08)}
+.tprev .ts{width:28%;padding:8px 6px}
+.tprev .tm{flex:1;padding:9px}
+.tprev i{display:block;height:7px;border-radius:4px;margin-bottom:6px}
+.tprev b{display:block;height:24px;border-radius:6px;margin-top:8px}
+.tprev.l .ts{background:#0F172A}.tprev.l .ts i{background:#334155}.tprev.l .tm{background:#F1F5F9}.tprev.l .tm i{background:#CBD5E1}.tprev.l b{background:#fff;border:1px solid #E2E8F0}
+.tprev.d .ts{background:#060B14}.tprev.d .ts i{background:#1E293B}.tprev.d .tm{background:#0B1220}.tprev.d .tm i{background:#243149}.tprev.d b{background:#121B2B;border:1px solid #243149}
+.tprev.a{position:relative}
+.tprev.a>div{position:absolute;inset:0;display:flex}
+.tprev.a>div>.tprev{flex:1;height:100%;border:none;border-radius:0}
+.tprev.a>div.dk{clip-path:polygon(100% 0,100% 100%,0 100%)}
+.tprev .tg{height:7px;width:40%;background:#C9A227;border-radius:4px}
+@media(max-width:900px){.theme-pick{grid-template-columns:1fr}}
+
+/* ================= الوضع الغامق (الشاشة بس — الطباعة فاتحة دايماً) ================= */
+@media screen{
+html.dark{color-scheme:dark;
+  --bg:#0B1220; --line:#243149; --ink:#E2E8F0; --mut:#94A3B8; --navy:#2E5C8C; --navy-2:#3A6EA5;
+  --slate:#060B14; --slate-2:#121C2D; --gold-soft:#3A3115;
+  --amber:#FBBF24; --amber-bg:#3A2A08; --emer:#34D399; --emer-bg:#0C3326; --blue:#60A5FA; --blue-bg:#132A4D;
+  --red:#F87171; --red-bg:#3D1418;
+  --d-card:#121B2B; --d-soft:#172235; --d-soft2:#1C2840; --d-txt-navy:#93C5FD}
+html.dark body{background:var(--bg);color:var(--ink)}
+/* الأسطح */
+html.dark .card,html.dark .kpi,html.dark .acc,html.dark .modal,html.dark .proj-card,html.dark .ctx,html.dark .lock-box,
+html.dark .btn,html.dark .imp-tabs button,html.dark .tabs button.on,html.dark .pin-bal,
+html.dark body.party-pin .pin-cardh,html.dark .search input{background:var(--d-card)}
+html.dark input,html.dark select,html.dark textarea{background:#0E1626;border-color:#2C3A55;color:var(--ink)}
+html.dark input::placeholder,html.dark textarea::placeholder{color:#5B6B85}
+html.dark input:focus,html.dark select:focus,html.dark textarea:focus{border-color:#4F7FB8}
+html.dark .btn:hover,html.dark .modal-f,html.dark .calc-box,html.dark tfoot td,html.dark .last-bar,html.dark .acc-sticky,
+html.dark .v-l,html.dark .v-bal,html.dark tr.projsub td,html.dark .x,html.dark kbd,html.dark .chip.gray,html.dark .chip.nodate{background:var(--d-soft)}
+html.dark tbody tr:nth-child(even){background:#101828}
+html.dark tbody tr:hover,html.dark .tabs button:hover,html.dark .alert:hover,html.dark .res:hover,html.dark .res.on,
+html.dark .ctx button:hover,html.dark .x:hover,html.dark .btn.ghost:hover{background:var(--d-soft2)}
+html.dark .btn{border-color:#2C3A55;color:var(--ink)}
+html.dark .btn.navy{background:var(--navy);border-color:var(--navy);color:#fff}
+html.dark .btn.gold{background:var(--gold);border-color:var(--gold);color:#1A1405}
+html.dark .btn.gold:hover{background:#B8931F}
+html.dark .btn.ghost{background:transparent;border-color:transparent;color:var(--mut)}
+html.dark .btn.danger{border-color:#7A2A2E;color:#F87171}
+html.dark .btn.danger:hover{background:#3D1418}
+html.dark label{color:#B6C2D4}
+html.dark kbd{color:#CBD5E1;border-color:#3A4A66}
+html.dark .theme-opt:hover{border-color:#4B5B76}
+html.dark .btn.navy:hover{background:#244B74}
+html.dark .bar{background:#243149}
+html.dark .ov{background:rgba(2,6,15,.72)}
+html.dark .side-logo{background:#fff}
+/* النص اللي كان كحلي — بقى أزرق فاتح */
+html.dark h1.page,html.dark .card-t,html.dark .kpi .val,html.dark .acc .an,html.dark .modal-h .t,html.dark .tabs button.on,
+html.dark .v-l,html.dark tr.projhead td,html.dark tr.projsub td,html.dark [style*="color:var(--navy)"]{color:var(--d-txt-navy)}
+html.dark .acc.on{border-color:#4F7FB8;box-shadow:0 0 0 2px rgba(96,165,250,.18)}
+/* صفوف الدفتر */
+html.dark tbody tr.payrow,html.dark tbody tr.payrow:nth-child(even),html.dark .last-cell.paid{background:#0D2A20}
+html.dark tbody tr.payrow:hover{background:#113829}
+html.dark tbody tr.inrow,html.dark tbody tr.inrow:nth-child(even){background:#0D2A20}
+html.dark tbody tr.basisrow,html.dark tbody tr.basisrow:nth-child(even){background:#151D2C}
+html.dark tbody tr.adjrow,html.dark tbody tr.adjrow:nth-child(even){background:#12233F}
+html.dark tbody tr.selrow,html.dark tbody tr.selrow:nth-child(even){background:#1E3A66 !important}
+html.dark tr.projhead td{background:#16233A}
+html.dark tfoot tr.projgrand td{background:#2B220B}
+@keyframes flashrowd{0%,45%{background:#5A4710}100%{background:transparent}}
+/* التنبيهات والملاحظات */
+html.dark .note{background:#2A210A;border-color:#5C4712;color:#FCD9A0}
+html.dark .alert.red{background:#2E1215;color:#FCA5A5}
+html.dark .alert.amber{background:#2A210A;color:#FCD9A0}
+html.dark .alert.blue{background:#10203B;color:#BFDBFE}
+html.dark .chip.gray{color:var(--mut)}
+html.dark .selbar .btn.danger{background:#fff}
+/* الألوان المكتوبة جوه الشاشات نفسها */
+html.dark [style*="background:#fff"],html.dark [style*="background: #fff"],html.dark [style*="background:#FFF"],html.dark [style*="background:white"]{background:var(--d-card) !important}
+html.dark [style*="background:#F8FAFC"],html.dark [style*="background:#F1F5F9"],html.dark [style*="background:#FAFAF9"],html.dark [style*="background:#EEF2F7"],html.dark [style*="background:#E2E8F0"]{background:var(--d-soft) !important}
+html.dark [style*="background:#FEF2F2"],html.dark [style*="background:#FEE2E2"]{background:#2E1215 !important}
+html.dark [style*="background:#FFFBEB"],html.dark [style*="background:#FEFCE8"],html.dark [style*="background:#FEF9C3"],html.dark [style*="background:#FEF3C7"],html.dark [style*="background:var(--gold-soft)"]{background:#2A210A !important}
+html.dark [style*="background:#F0FDF4"],html.dark [style*="background:#ECFDF5"],html.dark [style*="background:#DCFCE7"],html.dark [style*="background:#D1FAE5"]{background:#0D2A20 !important}
+html.dark [style*="background:#EFF6FF"],html.dark [style*="background:#DBEAFE"]{background:#10203B !important}
+html.dark [style*="#FCA5A5"]{border-color:#7A2A2E !important}
+html.dark [style*="#FDE68A"]{border-color:#5C4712 !important}
+html.dark [style*="#BBF7D0"],html.dark [style*="#A7F3D0"],html.dark [style*="#86EFAC"]{border-color:#1F5A43 !important}
+html.dark [style*="#BFDBFE"],html.dark [style*="#93C5FD"]{border-color:#2B4C7E !important}
+html.dark [style*="color:#7F1D1D"],html.dark [style*="color:#991B1B"]{color:#FCA5A5 !important}
+html.dark [style*="color:#78350F"],html.dark [style*="color:#7A5C00"],html.dark [style*="color:#92400E"],html.dark [style*="color:#3F2E00"]{color:#FCD9A0 !important}
+html.dark [style*="color:#065F46"],html.dark [style*="color:#14532D"]{color:#6EE7B7 !important}
+html.dark [style*="color:#1E3A8A"]{color:#BFDBFE !important}
+html.dark [style*="color:#334155"],html.dark [style*="color:#475569"],html.dark [style*="color:#0F172A"]{color:#CBD5E1 !important}
+/* زرار الوضع في الإعدادات */
 }
 /* ================= نسخة الموبايل — الشكل ================= */
 :root{ --tabh:62px; --barh:54px; --safeT:env(safe-area-inset-top,0px); --safeB:env(safe-area-inset-bottom,0px) }
@@ -474,6 +574,13 @@ tr.mob-pending td:first-child::after{content:' ⏳';font-size:12px}
 </style>
 </head>
 <body>
+<script>
+/* الوضع الغامق قبل ما الصفحة ترسم — الاختيار على الجهاز ده بس */
+(function () { try {
+  var t = localStorage.getItem('tantawy_theme') || 'light';
+  if (t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark');
+} catch (e) { } })();
+</script>
 <div class="app">
   <aside class="sidebar no-print">
     <div class="side-head">
@@ -2585,16 +2692,18 @@ const NAVS = [
   { k: 'rates', t: 'أسعار الوحدة', i: '📐' },
   { k: 'missing', t: 'البيانات الناقصة', i: '⚠' },
   { k: 'trash', t: 'سلة المحذوفات', i: '🗑' },
-  { k: 'xlimport', t: 'استرداد من إكسل', i: '⤒' },
-  { k: 'tg', t: 'تقرير تليجرام', i: '📨' },
-  { k: 'backup', t: 'نسخة احتياطية', i: '⤓' },
+  { k: 'xlimport', t: 'استرداد من إكسل', i: '⤒', set: 1 },
+  { k: 'tg', t: 'تقرير تليجرام', i: '📨', set: 1 },
+  { k: 'backup', t: 'نسخة احتياطية', i: '⤓', set: 1 },
   { k: 'audit', t: 'سجل التعديلات', i: '📜' },
-  { k: 'diag', t: 'حالة البرنامج', i: '🩺' },
+  { k: 'diag', t: 'حالة البرنامج', i: '🩺', set: 1 },
+  { k: 'settings', t: 'الإعدادات', i: '⚙' },
   { k: 'lock', t: 'قفل الشاشة', i: '🔒' },
   { k: 'exit', t: 'خروج', i: '⏻' }
 ];
 function renderNav() {
-  const cur = UI.view === 'party' && findParty(UI.pid) ? findParty(UI.pid).type : UI.view;
+  let cur = UI.view === 'party' && findParty(UI.pid) ? findParty(UI.pid).type : UI.view;
+  if (setOn() && SET_PAGES.some(x => x.k === cur)) cur = 'settings';
   const al = alerts().filter(a => a.lvl === 'red').length;
   const counts = {
     contractor: DB.parties.filter(p => p.type === 'contractor').length,
@@ -2604,7 +2713,7 @@ function renderNav() {
   };
   const bk = $('#backBtn');
   if (bk) bk.style.display = navStack.length > 1 ? 'flex' : 'none';
-  $('#nav').innerHTML = NAVS.map(n =>
+  $('#nav').innerHTML = NAVS.filter(n => !(n.set && setOn()) && !(n.k === 'settings' && !setOn())).map(n =>
     '<a class="' + (cur === n.k ? 'on' : '') + '" onclick="go(\'' + n.k + '\')"><span class="ico">' + n.i + '</span><span>' + n.t + '</span>' +
     (counts[n.k] ? '<span class="badge' + (n.k === 'dash' ? ' red' : '') + '">' + counts[n.k] + '</span>' : '') + '</a>').join('');
   $('#storeMode').textContent = Store.mode === 'local' ? 'تخزين المتصفح' : Store.mode === 'artifact' ? 'تخزين دائم' : 'مؤقت';
@@ -2629,6 +2738,52 @@ function go(v, pid, aid) {
 
 /* ================= الراوتر ================= */
 const VIEWS = { tg: () => viewTg(), assign: () => viewAssignItems(), income: () => viewIncome(), missing: () => viewMissing(), rates: () => viewRates(), expenses: () => viewExpenses(), labor: () => viewLabor(), custody: () => viewCustody(), compare: () => viewCompare(), weekly: () => viewWeekly(), audit: () => viewAudit(), diag: () => viewDiag(), dash: () => viewDash(), contractor: () => viewList(), supplier: () => viewList(), party: () => viewParty(), moves: () => viewMoves(), projects: () => viewProjects(), prices: () => viewPrices(), trash: () => viewTrash(), backup: () => viewBackup(), xlimport: () => viewXlImport(), due: () => viewDue(), cash: () => viewCash(), retention: () => viewRetention() };
+/* ================= الإعدادات: صفحة واحدة وجواها كل إعداد ليه صفحته ================= */
+function setOn() { return typeof MOB_VER === 'undefined'; }        // الموبايل زي ما هو
+const SET_PAGES = [
+  { k: 'settings', t: 'المظهر', i: '🌓' },
+  { k: 'tg', t: 'تقرير تليجرام', i: '📨' },
+  { k: 'xlimport', t: 'استرداد من إكسل', i: '⤒' },
+  { k: 'backup', t: 'النسخ الاحتياطية', i: '⤓' },
+  { k: 'diag', t: 'حالة البرنامج', i: '🩺' }
+];
+function settingsShell(k, inner) {
+  return `<div class="topbar" style="margin-bottom:6px"><div><h1 class="page" style="font-size:22px">⚙ الإعدادات</h1>
+      <p class="sub">كل إعدادات البرنامج في مكان واحد — كل حاجة ليها صفحتها</p></div></div>
+    <div class="tabs set-tabs no-print">${SET_PAGES.map(x => `<button class="${x.k === k ? 'on' : ''}" onclick="go('${x.k}')"><span>${x.i}</span>${esc(x.t)}</button>`).join('')}</div>
+    <div class="set-body">${inner}</div>`;
+}
+['tg', 'xlimport', 'backup', 'diag'].forEach(k => {
+  const v = VIEWS[k];
+  VIEWS[k] = () => setOn() ? settingsShell(k, v()) : v();
+});
+VIEWS.settings = () => settingsShell('settings', viewTheme());
+
+/* ---------- المظهر ---------- */
+function themeGet() { try { return localStorage.getItem('tantawy_theme') || 'light'; } catch (e) { return 'light'; } }
+function themeDark(t) { return t === 'dark' || (t === 'auto' && !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)); }
+function themeApply() { document.documentElement.classList.toggle('dark', setOn() && themeDark(themeGet())); }
+function themeSet(t) {
+  try { localStorage.setItem('tantawy_theme', t); } catch (e) { }
+  themeApply(); render();
+  toast(t === 'dark' ? 'الوضع الغامق اتفعّل 🌙' : t === 'auto' ? 'المظهر هيمشي مع ويندوز' : 'الوضع الفاتح ☀', 'ok');
+}
+try { if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (themeGet() === 'auto') themeApply(); }); } catch (e) { }
+function viewTheme() {
+  const t = themeGet();
+  const prev = c => `<div class="tprev ${c}"><div class="ts"><i></i><i></i><i></i></div><div class="tm"><div class="tg"></div><b></b><b></b></div></div>`;
+  const opt = (k, ttl, desc, pv) => `<button class="theme-opt ${t === k ? 'on' : ''}" onclick="themeSet('${k}')">${pv}
+      <div class="tt">${t === k ? '<span style="color:var(--gold)">●</span>' : '<span style="color:var(--line)">○</span>'}${ttl}</div><div class="td">${desc}</div></button>`;
+  return `<div class="card pad">
+    <div class="card-t" style="margin-bottom:4px">المظهر</div>
+    <p class="sub" style="margin:0 0 14px">اختار شكل البرنامج. الاختيار على الجهاز ده بس — مابيغيّرش أي حاجة في الحسابات، والطباعة وملفات PDF وتقارير تليجرام بتفضل فاتحة زي ما هي.</p>
+    <div class="theme-pick">
+      ${opt('light', '☀ فاتح', 'الشكل العادي', prev('l'))}
+      ${opt('dark', '🌙 غامق', 'أريح للعين بالليل', prev('d'))}
+      ${opt('auto', '🖥 تلقائي', 'زي إعداد ويندوز — بيتغير لوحده', `<div class="tprev a"><div>${prev('l')}</div><div class="dk">${prev('d')}</div></div>`)}
+    </div></div>`;
+}
+
 /* السطور في الدفتر: id → «بصمة» السطر من غير عمود الرصيد والأزرار (الرصيد بيتغير لكل اللي تحته لما تعدّل مبلغ) */
 function ledgerSigs() {
   const m = new Map();
@@ -3422,7 +3577,7 @@ function jumpLast() {
   last.scrollIntoView({ behavior: 'smooth', block: 'center' });
   last.style.transition = 'background .3s';
   const old = last.style.background;
-  last.style.background = '#FEF3C7';
+  last.style.background = document.documentElement.classList.contains('dark') ? '#4A3A0C' : '#FEF3C7';
   setTimeout(() => { last.style.background = old; }, 1400);
 }
 
