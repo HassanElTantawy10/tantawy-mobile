@@ -9,7 +9,7 @@
    - كل طلب لازم يكون معاه key (كود الربط). من غيره السكربت مش بيرد بأي بيانات.
 
    أول مرة: شغّل setup() من المحرر ← انشر Web app (Execute as: Me — Who has access: Anyone)
-   ← شغّل linkCode() وخد «كود الربط» من السجل وحطه في البرنامج على اللاب. */
+   ← شغّل setup() تاني (أو linkCode()) وخد «كود الربط» من السجل وحطه في البرنامج على اللاب. */
 
 var APP_NAME = 'برنامج العهدة';
 var VER = '1.0';
@@ -17,15 +17,14 @@ var TZ = 'Africa/Cairo';
 var MOBILE_PAGE = 'https://hassaneltantawy10.github.io/tantawy-mobile/custody/';
 var P = PropertiesService.getScriptProperties();
 
-function nowCairo() { return Utilities.formatDate(new Date(), TZ, "yyyy-MM-dd'T'HH:mm:ss"); }
-
 /* ================= أول تشغيل ================= */
 function setup() {
   folder_();
   if (!P.getProperty('KEY')) P.setProperty('KEY', Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '').slice(0, 8));
   var has = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'dailyBackup'; });
   if (!has) ScriptApp.newTrigger('dailyBackup').timeBased().everyDays(1).atHour(3).inTimezone(TZ).create();
-  Logger.log('اتعمل ✓ — دلوقتي انشر Web app وبعدين شغّل linkCode()');
+  Logger.log('اتعمل ✓');
+  linkCode();   // لو اتنشر خلاص بيطبع كود الربط على طول
 }
 function linkCode() {
   var url = ScriptApp.getService().getUrl();
@@ -35,6 +34,8 @@ function linkCode() {
   Logger.log('كود الربط (انسخه كله وحطه في البرنامج على اللاب ← الإعدادات ← الربط مع الموبايل):\n' + code);
   Logger.log('ولينك الموبايل الجاهز (افتحه على التليفون مرة واحدة):\n' + MOBILE_PAGE + '#link=' + encodeURIComponent(code));
 }
+
+function nowCairo() { return Utilities.formatDate(new Date(), TZ, "yyyy-MM-dd'T'HH:mm:ss"); }
 
 /* ================= التخزين: ملفات JSON في فولدر واحد ================= */
 function folder_() {
