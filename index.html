@@ -602,6 +602,198 @@ tr.mob-pending td:first-child::after{content:' ⏳';font-size:12px}
 /* الطباعة: من غير الشريطين */
 @media print{ .mbar,.mtabs,.mdrawer{display:none !important} body{padding:0 !important} }
 
+/* ================= شكل الموبايل الجديد (m2) — نوفمبر ٢٠٢٦ =================
+   شاشات معمولة للموبايل من الأول: رئيسية، قوايم، صفحة الطرف، المشاريع، المزيد.
+   الحسابات نفسها زي ما هي — ده شكل بس. */
+:root{ --tabh:64px; --barh:56px; --m2r:18px; --m2sh:0 1px 2px rgba(15,23,42,.05),0 6px 18px rgba(15,23,42,.05) }
+body{font-family:'Tajawal',system-ui,-apple-system,'SF Arabic','Segoe UI',Roboto,'Noto Sans Arabic',Tahoma,sans-serif;font-size:15px;line-height:1.5}
+.main{padding:14px 14px 96px !important}
+.main h1.page{display:none}
+.main .topbar{margin-bottom:10px;gap:8px}
+.main .topbar .sub{margin:0;font-size:12.5px}
+*{-webkit-tap-highlight-color:transparent}
+
+/* الشريط اللي فوق */
+.mbar{background:linear-gradient(180deg,#13294A,#1B3A5C);box-shadow:0 2px 14px rgba(15,23,42,.22);gap:6px;padding-inline:8px}
+.mbar .mt{font-size:17px;padding-inline:6px}
+.mbar button{background:rgba(255,255,255,.1);border-radius:12px;height:40px;min-width:40px;display:inline-flex;align-items:center;justify-content:center;padding:0 9px}
+.mbar button:active{background:rgba(255,255,255,.22)}
+.mbar button svg{width:20px;height:20px}
+.mbar img{width:36px;height:36px;border-radius:10px;margin-inline-start:2px}
+.mpill{font-size:12px !important;gap:5px;padding:0 10px !important}
+.mpill i{width:8px;height:8px;border-radius:50%;background:#34D399;display:inline-block}
+.mpill.wait i{background:#FBBF24}.mpill.err i{background:#F87171}
+.mpill.ok,.mpill.wait,.mpill.err{background:rgba(255,255,255,.1) !important}
+
+/* التبويب اللي تحت */
+.mtabs{border-top:0;box-shadow:0 -1px 0 var(--line),0 -8px 24px rgba(15,23,42,.07);background:rgba(255,255,255,.96);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.mtabs a{position:relative;font-size:11px;gap:4px;color:#94A3B8}
+.mtabs a svg{width:23px;height:23px}
+.mtabs a.on{color:var(--navy)}
+.mtabs a.on::before{content:'';position:absolute;top:0;inset-inline:26%;height:3px;border-radius:0 0 4px 4px;background:var(--gold)}
+.mtabs a:active{background:#F1F5F9}
+
+/* زرار الإضافة العايم */
+.m2fab{position:fixed;z-index:59;inset-inline-end:16px;bottom:calc(var(--tabh) + var(--safeB) + 14px);height:54px;padding:0 20px 0 18px;border:0;border-radius:27px;
+  background:var(--gold);color:#2B2000;font:inherit;font-weight:800;font-size:15px;display:flex;align-items:center;gap:8px;box-shadow:0 8px 22px rgba(201,162,39,.45)}
+.m2fab svg{width:22px;height:22px}
+.m2fab:active{transform:scale(.96)}
+
+/* عناصر عامة */
+.m2card{background:#fff;border-radius:var(--m2r);box-shadow:var(--m2sh);margin-bottom:14px;overflow:hidden}
+.m2h{display:flex;align-items:center;justify-content:space-between;margin:20px 4px 9px}
+.m2h b{font-size:15.5px;color:var(--ink)}
+.m2h a{font-size:13px;font-weight:700;color:var(--navy);text-decoration:none;padding:4px 2px}
+.m2num{font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate;display:inline-block}
+.m2cur{font-size:.62em;font-weight:600;opacity:.75;margin-inline-start:3px}
+.m2empty{text-align:center;color:var(--mut);padding:30px 16px;font-size:14px}
+.m2empty .big{font-size:38px;margin-bottom:6px}
+
+/* البطل — الرقم الكبير */
+.m2hero{background:linear-gradient(135deg,#13294A 0%,#1B3A5C 55%,#24507D 100%);color:#fff;border-radius:22px;padding:18px 18px 14px;margin-bottom:14px;position:relative;overflow:hidden;box-shadow:0 10px 26px rgba(19,41,74,.28)}
+.m2hero::after{content:'';position:absolute;inset-inline-start:-40px;top:-50px;width:170px;height:170px;border-radius:50%;background:radial-gradient(circle,rgba(201,162,39,.35),transparent 70%)}
+.m2hero .l{font-size:13px;opacity:.8;font-weight:600}
+.m2hero .v{font-size:34px;font-weight:800;line-height:1.25;margin-top:2px;letter-spacing:.2px}
+.m2hero .v.sm{font-size:26px}
+.m2hero .sub{font-size:12.5px;opacity:.75;margin-top:2px}
+.m2hero .split{display:flex;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.14);position:relative;z-index:1}
+.m2hero .split>div{flex:1;min-width:0;padding-inline:6px;border-inline-start:1px solid rgba(255,255,255,.14)}
+.m2hero .split>div:first-child{border:0;padding-inline-start:0}
+.m2hero .split span{display:block;font-size:11.5px;opacity:.72;white-space:nowrap}
+.m2hero .split b{display:block;font-size:15.5px;font-weight:800;margin-top:1px}
+.m2hero .tag{display:inline-block;background:rgba(255,255,255,.14);border-radius:20px;padding:2px 11px;font-size:12px;font-weight:700;margin-inline-end:5px;margin-top:8px}
+.m2hero .tag.gold{background:var(--gold);color:#2B2000}
+.m2hero a.act{color:#fff;text-decoration:none;display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.14);border-radius:12px;padding:8px 13px;font-size:13.5px;font-weight:700;margin:10px 0 0 6px;position:relative;z-index:1}
+
+/* أزرار سريعة */
+.m2quick{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:6px}
+.m2quick button{border:0;background:#fff;border-radius:16px;box-shadow:var(--m2sh);padding:13px 4px 11px;font:inherit;font-size:13px;font-weight:800;color:var(--ink);display:flex;flex-direction:column;align-items:center;gap:7px}
+.m2quick button .ic{width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:21px}
+.m2quick button:active{transform:scale(.97);background:#F8FAFC}
+.ic.g{background:#D1FAE5}.ic.y{background:var(--gold-soft)}.ic.b{background:#DBEAFE}.ic.s{background:#F1F5F9}.ic.r{background:#FEE2E2}.ic.p{background:#EDE9FE}
+
+/* الصفوف */
+.m2row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid #F1F5F9;min-height:62px;text-decoration:none;color:inherit;cursor:pointer;background:#fff;width:100%;border-inline:0;border-top:0;font:inherit;text-align:start}
+.m2row:last-child{border-bottom:0}
+.m2row:active{background:#F8FAFC}
+.m2row .av{flex:0 0 42px;width:42px;height:42px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;background:#EEF2F7;color:var(--navy)}
+.m2row .av.pay{background:#D1FAE5;color:#047857}.m2row .av.item{background:var(--gold-soft);color:#7A5C00}.m2row .av.sup{background:#DBEAFE;color:#1D4ED8}
+.m2row .tx{flex:1;min-width:0}
+.m2row .t{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m2row .t.wrap{white-space:normal}
+.m2row .s{font-size:12.5px;color:var(--mut);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m2row .s.wrap{white-space:normal}
+.m2row .am{flex:0 0 auto;text-align:end;max-width:46%}
+.m2row .am b{display:block;font-size:15.5px;font-weight:800}
+.m2row .am small{display:block;font-size:11.5px;color:var(--mut);font-weight:600}
+.m2row .chev{flex:0 0 auto;color:#CBD5E1;font-size:18px;margin-inline-start:-4px}
+.m2row.pend{background:#FFFBEB}
+.c-amber{color:var(--amber)}.c-emer{color:#047857}.c-blue{color:#1D4ED8}.c-red{color:var(--red)}.c-mut{color:var(--mut)}
+
+/* التنبيهات */
+.m2al{display:flex;gap:10px;padding:11px 14px;border-bottom:1px solid #F1F5F9;font-size:13.5px;line-height:1.6;cursor:pointer}
+.m2al:last-child{border-bottom:0}
+.m2al .d{flex:0 0 8px;width:8px;height:8px;border-radius:50%;margin-top:8px;background:#60A5FA}
+.m2al.red .d{background:#EF4444}.m2al.amber .d{background:#F59E0B}
+
+/* شريط المشاريع الأفقي + كروت الحسابات */
+.m2strip{display:flex;gap:10px;overflow-x:auto;padding:2px 14px 12px;margin:0 -14px;scroll-snap-type:x proximity;scrollbar-width:none}
+.m2strip::-webkit-scrollbar{display:none}
+.m2pj{flex:0 0 158px;scroll-snap-align:start;background:#fff;border-radius:16px;box-shadow:var(--m2sh);padding:12px 13px;cursor:pointer;border:2px solid transparent}
+.m2pj.on{border-color:var(--gold);background:#FFFDF5}
+.m2pj:active{transform:scale(.98)}
+.m2pj .n{font-weight:800;font-size:14.5px;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m2pj .k{font-size:11.5px;color:var(--mut);margin-top:6px}
+.m2pj .v{font-size:16.5px;font-weight:800}
+.m2bar{height:6px;border-radius:3px;background:#E2E8F0;overflow:hidden;margin-top:8px}
+.m2bar i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,#C9A227,#E5C24A)}
+.m2bar.done i{background:linear-gradient(90deg,#059669,#34D399)}
+.m2bar.over i{background:linear-gradient(90deg,#DC2626,#F87171)}
+
+/* البحث والفلاتر */
+.m2search{position:sticky;top:calc(var(--barh) + var(--safeT));z-index:20;background:var(--bg);margin:-14px -14px 0;padding:12px 14px 8px}
+.m2search .in{position:relative}
+.m2search input{width:100%;height:48px;border-radius:14px;border:1px solid var(--line);background:#fff;padding:0 44px 0 14px;font-size:16px !important;box-shadow:var(--m2sh)}
+.m2search input:focus{outline:0;border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,162,39,.18)}
+.m2search .in svg{position:absolute;inset-inline-start:14px;top:14px;width:20px;height:20px;color:#94A3B8;pointer-events:none}
+.m2chips{display:flex;gap:7px;overflow-x:auto;padding:9px 14px 3px;margin:0 -14px;scrollbar-width:none}
+.m2chips::-webkit-scrollbar{display:none}
+.m2chips button{flex:0 0 auto;border:1px solid var(--line);background:#fff;border-radius:20px;padding:7px 14px;font:inherit;font-size:13px;font-weight:700;color:#475569;white-space:nowrap}
+.m2chips button.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.m2chips .sep{flex:0 0 1px;background:var(--line);margin:4px 2px}
+.m2sum{display:flex;justify-content:space-between;align-items:baseline;margin:10px 4px 8px;font-size:13px;color:var(--mut)}
+.m2sum b{color:var(--ink);font-size:15px}
+
+/* صفحة الطرف */
+.m2stats{display:grid;grid-template-columns:repeat(3,1fr);background:#fff;border-radius:var(--m2r);box-shadow:var(--m2sh);margin-bottom:14px}
+.m2stats>div{padding:12px 6px;text-align:center;border-inline-start:1px solid #F1F5F9;min-width:0}
+.m2stats>div:first-child{border:0}
+.m2stats span{display:block;font-size:11.5px;color:var(--mut);font-weight:600}
+.m2stats b{display:block;font-size:16px;font-weight:800;margin-top:2px;white-space:nowrap}
+.m2acts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.m2btn{border:0;border-radius:15px;height:52px;font:inherit;font-size:15.5px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:var(--m2sh);text-decoration:none}
+.m2btn:active{transform:scale(.98)}
+.m2btn.pay{background:#059669;color:#fff}.m2btn.item{background:var(--gold);color:#2B2000}.m2btn.navy{background:var(--navy);color:#fff}.m2btn.wh{background:#fff;color:var(--ink)}
+.m2btn.full{width:100%;margin-bottom:10px}
+.m2info{display:flex;justify-content:space-between;gap:10px;padding:10px 14px;border-bottom:1px solid #F1F5F9;font-size:14px}
+.m2info:last-child{border-bottom:0}
+.m2info span{color:var(--mut)}
+.m2info b{font-weight:800;text-align:end}
+.m2acct{padding:13px 14px 4px}
+.m2acct .n{font-weight:800;font-size:16px;color:var(--navy)}
+.m2tag{display:inline-block;border-radius:20px;padding:2px 10px;font-size:11.5px;font-weight:700;background:#F1F5F9;color:#475569;margin-inline-end:4px;margin-top:5px}
+.m2tag.gold{background:var(--gold-soft);color:#7A5C00}.m2tag.emer{background:#D1FAE5;color:#047857}.m2tag.amber{background:#FEF3C7;color:#B45309}.m2tag.blue{background:#DBEAFE;color:#1D4ED8}.m2tag.red{background:#FEE2E2;color:#B91C1C}
+.m2more{display:block;width:100%;border:0;background:#F8FAFC;padding:13px;font:inherit;font-weight:700;font-size:13.5px;color:var(--navy)}
+
+/* صفحة «المزيد» */
+.m2menu .m2row .av{font-size:20px}
+
+/* الشيت اللي بيطلع من تحت */
+.m2sheet{position:fixed;inset:0;z-index:85;background:rgba(15,23,42,.5);display:flex;align-items:flex-end;animation:m2fade .15s}
+.m2sheet .sh{background:var(--bg);width:100%;border-radius:22px 22px 0 0;max-height:88vh;display:flex;flex-direction:column;padding-bottom:var(--safeB);animation:m2up .22s cubic-bezier(.2,.8,.2,1)}
+.m2sheet .grab{width:44px;height:5px;border-radius:3px;background:#CBD5E1;margin:9px auto 4px;flex:0 0 auto}
+.m2sheet .st{font-weight:800;font-size:16.5px;padding:6px 18px 10px;flex:0 0 auto;display:flex;justify-content:space-between;align-items:center}
+.m2sheet .st button{border:0;background:#E2E8F0;width:32px;height:32px;border-radius:50%;font-size:14px;color:#475569}
+.m2sheet .sb{overflow:auto;-webkit-overflow-scrolling:touch;padding:0 14px 14px}
+.m2sheet .sb input.q{width:100%;height:48px;border-radius:14px;border:1px solid var(--line);background:#fff;padding:0 14px;margin-bottom:10px}
+@keyframes m2up{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
+@keyframes m2fade{from{opacity:0}to{opacity:1}}
+
+/* النوافذ (الفورم) */
+.ov{background:rgba(15,23,42,.5) !important}
+.modal,.modal.wide{border-radius:22px 22px 0 0 !important;max-height:94vh;animation:m2up .22s cubic-bezier(.2,.8,.2,1)}
+.modal-h{padding:14px 18px 12px !important;position:relative}
+.modal-h::before{content:'';position:absolute;top:6px;inset-inline:0;margin:auto;width:44px;height:5px;border-radius:3px;background:#CBD5E1}
+.modal-h .t{font-size:16.5px !important;padding-top:6px}
+.modal-h .x{width:34px;height:34px;border-radius:50%;margin-top:4px}
+.modal-b{padding:14px 16px !important}
+.modal .f label{font-size:13px;font-weight:700;margin-bottom:5px}
+.modal input:not([type=checkbox]):not([type=radio]):not([type=file]),.modal select{min-height:48px;border-radius:13px !important;padding-inline:13px}
+.modal textarea{border-radius:13px !important}
+.modal input.money{font-size:19px !important;font-weight:800}
+.modal-f{gap:8px !important;padding:12px 14px calc(12px + var(--safeB)) !important;background:#fff;border-top:1px solid var(--line);box-shadow:0 -6px 16px rgba(15,23,42,.05)}
+.modal-f .btn{flex:1 1 auto;min-height:48px;justify-content:center;border-radius:14px;font-size:14.5px;font-weight:800}
+.modal-f .btn.navy,.modal-f .btn.gold{flex:2 1 150px;order:-1}
+.modal-f .btn.danger{flex:0 0 auto}
+.modal-f > div[style*="flex:1"]{display:none}
+.modal .note{border-radius:13px;font-size:13.5px}
+.modal .calc-box{border-radius:14px}
+.btn{border-radius:12px}
+.toast{bottom:calc(var(--tabh) + var(--safeB) + 78px) !important;border-radius:14px !important;font-weight:700}
+
+/* الشاشات القديمة (من «المزيد») — كروتها أنضف */
+.main .card{border-radius:var(--m2r);border:0;box-shadow:var(--m2sh)}
+table.mcards tr{border:0;border-radius:16px;box-shadow:var(--m2sh);padding:9px 14px;margin-bottom:10px}
+table.mcards td{padding:6px 0 !important;font-size:14px}
+table.mcards td:first-child{font-size:15.5px;color:var(--navy);padding-bottom:7px !important;border-bottom:1px solid #F1F5F9 !important;margin-bottom:3px}
+.kpi{border-radius:16px;border:0;box-shadow:var(--m2sh)}
+.main .tabs{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
+.main .tabs button{flex:0 0 auto}
+.mban{border-radius:14px;border:0;box-shadow:var(--m2sh)}
+.msetup{border-radius:22px !important;margin-top:30px}
+.lock-box{border-radius:22px !important}
+@media print{ .m2fab,.m2sheet{display:none !important} }
+
 </style>
 </head>
 <body>
@@ -977,10 +1169,21 @@ const PROJECT_LIST = ['R-06', 'R-07', 'R12-O.4', 'Villa', 'عام'];
 /* المشروع الفعلي للحساب: المحدد في الحساب، وإلا المكان المكتوب في البنود لو بيطابق مشروع، وإلا «غير محدد» */
 const UNASSIGNED = 'غير محدد';
 /* R06 و R-06 و r 06 كلهم مشروع واحد — بنوحّدهم بمفتاح واحد */
+const _projKeyMemo = new Map();
 function projKey(s) {
-  return toEnDigits(String(s == null ? '' : s)).replace(/[\s\-_/\\.]+/g, '').toUpperCase();
+  const raw = String(s == null ? '' : s);
+  let k = _projKeyMemo.get(raw);
+  if (k === undefined) {
+    k = toEnDigits(raw).replace(/[\s\-_/\\.]+/g, '').toUpperCase();
+    if (_projKeyMemo.size > 5000) _projKeyMemo.clear();
+    _projKeyMemo.set(raw, k);
+  }
+  return k;
 }
+let _projMapCache = null;
+function projCacheReset() { _projMapCache = null; }
 function projCanonMap() {
+  if (_projMapCache) return _projMapCache;
   const map = {};
   const put = v => { const t = String(v == null ? '' : v).trim(); if (!t) return; const k = projKey(t); if (!map[k]) map[k] = t; };
   ((DB && DB.settings && DB.settings.projects) || []).forEach(put);   // المسجّلة لها الأولوية في التسمية
@@ -989,6 +1192,8 @@ function projCanonMap() {
     (DB.expenses || []).forEach(x => put(x.project));
     (DB.labor || []).forEach(w => { put(w.project); w.days.forEach(dd => put(dd.project)); });
   }
+  _projMapCache = map;
+  setTimeout(projCacheReset, 0);
   return map;
 }
 function canonProject(s) {
@@ -2615,6 +2820,7 @@ function fullState() {
   };
 }
 function applyState(d) {
+  projCacheReset();
   DB.parties = (d.parties || []).map(normalizeParty);
   DB.trash = d.trash || [];
   DB.settings = d.settings || DB.settings || {};
@@ -2640,6 +2846,7 @@ function stateCounts(d) {
 }
 
 function snapshot() {
+  projCacheReset();
   if (typeof changeCount === 'number') changeCount++;
   try {
     const s = JSON.stringify(fullState());
@@ -12384,7 +12591,7 @@ autoBackup = async function () { };       // النسخة الأصلية على 
 extBackupNow = async function () { return false; };
 mobileExport = async function () { return false; };
 
-const MOB_VER = '2026-10-16a';
+const MOB_VER = '2026-11-16-m2';
 const MOB = {
   loaded: false, base: null, baseAt: '', outbox: [], cfg: null,
   refState: null, refPayIds: null, good: null,
@@ -12968,6 +13175,419 @@ MOB.ready.then(() => {
 });
 
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+<script>
+/* ================= شكل الموبايل الجديد (m2) — نوفمبر ٢٠٢٦ =================
+   الشاشات الأساسية مكتوبة للموبايل من الأول (مش جداول اللاب متحوّلة لكروت):
+   الرئيسية · المقاولين/الموردين · صفحة الطرف والدفتر · المشاريع · المزيد · المزامنة.
+   كل الأرقام جاية من نفس دوال الحساب بتاعة اللاب (partyTotals, accRem, ledger, projectStats…) —
+   مفيش ولا معادلة هنا. والحارس والمزامنة زي ما هم بالحرف. */
+const M2_VER = 'm2-2026-11-16';
+const M2 = { q: '', f: 'open', proj: '', type: '', allAl: false, ledN: 40, ledKey: '', sort: 'new' };
+jumpLastSoon = function () { };                      // الدفتر على الموبايل الأحدث فوق — مفيش نط لتحت
+
+const M2I = {
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-6h4v6"/></svg>',
+  con: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h18"/><path d="M5 17v-2a7 7 0 0 1 14 0v2"/><path d="M10 8V5h4v3"/><path d="M4 20h16"/></svg>',
+  sup: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h11v10H2z"/><path d="M13 9h4l4 4v3h-8"/><circle cx="6.5" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg>',
+  proj: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5l8-2v18"/><path d="M12 9h8v12"/><path d="M2 21h20"/><path d="M7.5 8v.01M7.5 12v.01M7.5 16v.01M16 13v.01M16 17v.01"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>',
+  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>'
+};
+const m2q = s => esc(s).replace(/'/g, "\\'");
+const m2m = (v, cls) => `<span class="m2num ${cls || ''}">${fmt(v)}</span>`;
+const m2d = d => d ? dsp(d) : 'من غير تاريخ';
+function m2bal(rem) { const b = balState(rem); return { cls: 'c-' + b.cls, txt: b.txt, v: b.v, tag: b.cls }; }
+const m2people = () => DB.parties.filter(p => !isCarry(p));
+const m2pendIds = () => new Set(MOB.outbox.filter(e => !e.del && e.sentRev < e.rev).map(e => e.id));
+/* حسابات الطرف اللي ليها بنود على المشروع ده */
+function m2accInProj(a, proj) { if (a.refOnly) return false; try { return accProjectSplit(a)[proj] !== undefined; } catch (e) { return accProject(a) === proj; } }
+function m2projList() { return projectNames().filter(n => n !== UNASSIGNED || hasUnassigned()); }
+
+/* ---------- الرئيسية ---------- */
+function m2Home() {
+  const c = grandTotals('contractor'), s = grandTotals('supplier');
+  const month = todayISO().slice(0, 7);
+  const paidM = allMoves(m => m.k === 'p' && m.kind !== 'sched' && (m.date || '').slice(0, 7) === month && !isCarry(m.p)).reduce((a, b) => a + b.amount, 0);
+  const al = alerts();
+  const top = m2people().map(p => ({ p, t: partyTotals(p) })).filter(x => x.t.rem > 0.5).sort((a, b) => b.t.rem - a.t.rem).slice(0, 5);
+  const moves = allMoves(m => !isCarry(m.p)).slice(0, 8);
+  const pend = m2pendIds();
+  const projs = m2projList().map(n => ({ n, s: projectStats(n) })).sort((a, b) => b.s.gross - a.s.gross);
+  return `
+  <div class="m2hero">
+    <div class="l">إجمالي المستحق علينا</div>
+    <div class="v">${m2m(c.rem + s.rem)}<span class="m2cur">ج.م</span></div>
+    <div class="split">
+      <div onclick="go('contractor')"><span>للمقاولين</span><b>${m2m(c.rem)}</b></div>
+      <div onclick="go('supplier')"><span>للموردين</span><b>${m2m(s.rem)}</b></div>
+      <div><span>اتدفع الشهر ده</span><b>${m2m(paidM)}</b></div>
+    </div>
+  </div>
+  <div class="m2quick">
+    <button onclick="m2PickPay()"><span class="ic g">💸</span>سداد</button>
+    <button onclick="openWork()"><span class="ic y">🧱</span>بند مقاول</button>
+    <button onclick="openPurchase()"><span class="ic b">🛒</span>مشترى</button>
+  </div>
+
+  ${al.length ? `<div class="m2h"><b>تنبيهات <span class="m2tag ${al.some(a => a.lvl === 'red') ? 'red' : 'amber'}">${al.length}</span></b>
+      ${al.length > 3 ? `<a href="javascript:void 0" onclick="M2.allAl=!M2.allAl;render()">${M2.allAl ? 'أقل' : 'عرض الكل'}</a>` : ''}</div>
+    <div class="m2card">${al.slice(0, M2.allAl ? 60 : 3).map(a => `<div class="m2al ${a.lvl}" onclick="${a.proj ? "go('projects')" : `go('party','${a.pid}','${a.aid}')`}">
+      <span class="d"></span><span>${esc(a.txt)}</span></div>`).join('')}</div>` : ''}
+
+  <div class="m2h"><b>المشاريع</b><a href="javascript:void 0" onclick="go('projects')">الكل ←</a></div>
+  <div class="m2strip">${projs.map(x => { const pc = x.s.gross > 0 ? Math.min(100, x.s.paid / x.s.gross * 100) : 0;
+    return `<div class="m2pj" onclick="go('m2proj','${m2q(x.n)}')"><div class="n">${esc(x.n)}</div>
+      <div class="k">الباقي عليه</div><div class="v ${x.s.rem > 0.5 ? 'c-amber' : 'c-emer'}">${m2m(x.s.rem)}</div>
+      <div class="m2bar ${pc >= 99.5 ? 'done' : ''}"><i style="width:${pc.toFixed(0)}%"></i></div>
+      <div class="k" style="margin-top:5px">اتصرف ${Math.round(pc)}% من ${fmt(x.s.gross)}</div></div>`; }).join('') || '<div class="m2empty">مفيش مشاريع</div>'}</div>
+
+  ${top.length ? `<div class="m2h"><b>أكبر المستحقات</b><a href="javascript:void 0" onclick="go('due')">الكل ←</a></div>
+  <div class="m2card">${top.map(x => m2PartyRow(x.p, x.t.rem)).join('')}</div>` : ''}
+
+  <div class="m2h"><b>آخر الحركات</b><a href="javascript:void 0" onclick="go('moves')">الكل ←</a></div>
+  <div class="m2card">${moves.map(m => m2MoveRow(m, pend)).join('') || '<div class="m2empty">مفيش حركات</div>'}</div>`;
+}
+function m2PartyRow(p, rem, sub) {
+  const b = m2bal(rem), n = p.accounts.filter(a => !a.refOnly).length;
+  return `<a class="m2row" href="javascript:void 0" onclick="go('party','${p.id}')">
+    <span class="av ${p.type === 'supplier' ? 'sup' : ''}">${esc((p.name || '؟').trim().charAt(0))}</span>
+    <span class="tx"><div class="t">${esc(p.name)}</div><div class="s">${esc(sub || [p.trade, n + ' حساب'].filter(Boolean).join(' · '))}</div></span>
+    <span class="am"><b class="${b.cls}">${b.v ? m2m(b.v) : 'خالص'}</b>${b.v ? `<small>${b.txt}</small>` : ''}</span></a>`;
+}
+function m2MoveRow(m, pend) {
+  const pay = m.k === 'p', id = m.ref && m.ref.id;
+  return `<a class="m2row ${pend && pend.has(id) ? 'pend' : ''}" href="javascript:void 0" onclick="go('party','${m.p.id}','${m.a.id}')">
+    <span class="av ${pay ? 'pay' : 'item'}">${pay ? '💸' : '🧱'}</span>
+    <span class="tx"><div class="t">${esc(m.p.name)}</div><div class="s">${esc(m.desc || '')} · ${m2d(m.date)}${pend && pend.has(id) ? ' · ⏳ لسه ما اتبعتش' : ''}</div></span>
+    <span class="am"><b class="${pay ? 'c-emer' : ''}">${pay ? '−' : ''}${m2m(m.amount)}</b><small>${pay ? (m.kind === 'advance' ? 'سلفة' : m.kind === 'sched' ? 'مؤجل' : 'سداد') : 'بند'}</small></span></a>`;
+}
+
+/* ---------- المقاولين / الموردين ---------- */
+function m2ListData(type) {
+  const q = (M2.q || '').trim().toLowerCase();
+  let arr = m2people().filter(p => p.type === type).map(p => {
+    const accs = p.accounts.filter(a => !a.refOnly && (!M2.proj || m2accInProj(a, M2.proj)));
+    return { p, n: accs.length, rem: M2.proj ? accs.reduce((t, a) => t + accRem(a), 0) : partyTotals(p).rem };
+  });
+  if (M2.proj) arr = arr.filter(x => x.n);
+  const all = arr.length, owed = arr.filter(x => x.rem > 0.5).length;
+  if (q) arr = arr.filter(x => (x.p.name + ' ' + x.p.trade + ' ' + x.p.phone).toLowerCase().includes(q));
+  else if (M2.f === 'open') arr = arr.filter(x => x.rem > 0.5);
+  else if (M2.f === 'done') arr = arr.filter(x => x.rem <= 0.5);
+  arr.sort((a, b) => b.rem - a.rem || a.p.name.localeCompare(b.p.name, 'ar'));
+  return { arr, all, owed, total: arr.reduce((t, x) => t + Math.max(0, x.rem), 0) };
+}
+function m2ListBody(type) {
+  const d = m2ListData(type);
+  return `<div class="m2sum"><span>${d.arr.length} ${type === 'supplier' ? 'مورد' : 'مقاول'}${M2.proj ? ' في ' + esc(M2.proj) : ''}</span><span>الباقي لهم <b>${m2m(d.total)}</b> ج.م</span></div>
+    <div class="m2card">${d.arr.map(x => m2PartyRow(x.p, x.rem, [x.p.trade, x.n + ' حساب'].filter(Boolean).join(' · '))).join('')
+      || `<div class="m2empty"><div class="big">${M2.q ? '🔍' : '✅'}</div>${M2.q ? 'مفيش حد بالاسم ده' : M2.f === 'open' ? 'مفيش حد ليه باقي' : 'مفيش'}</div>`}</div>`;
+}
+function m2List(type) {
+  if (M2.type !== type) { M2.type = type; M2.q = ''; M2.f = 'open'; }
+  const d = m2ListData(type), projs = m2projList().filter(n => n !== UNASSIGNED);
+  const chip = (k, t) => `<button class="${M2.f === k && !M2.q ? 'on' : ''}" onclick="M2.f='${k}';M2.q='';render()">${t}</button>`;
+  return `<div class="m2search"><div class="in">${M2I.search}
+      <input id="m2q" type="search" enterkeyhint="search" autocomplete="off" placeholder="دوّر بالاسم أو الصنف…" value="${esc(M2.q)}"
+        oninput="M2.q=this.value;document.getElementById('m2list').innerHTML=m2ListBody('${type}')"></div>
+    <div class="m2chips">${chip('open', 'ليهم باقي (' + d.owed + ')')}${chip('all', 'الكل (' + d.all + ')')}${chip('done', 'خالصين')}
+      <span class="sep"></span>
+      ${projs.map(n => `<button class="${M2.proj === n ? 'on' : ''}" onclick="M2.proj=M2.proj==='${m2q(n)}'?'':'${m2q(n)}';render()">${esc(n)}</button>`).join('')}</div></div>
+  <div id="m2list">${m2ListBody(type)}</div>`;
+}
+
+/* ---------- صفحة الطرف + الدفتر ---------- */
+function m2Party() {
+  const p = findParty(UI.pid);
+  if (!p) return '<div class="m2empty"><div class="big">🤷</div>الطرف ده مش موجود</div>';
+  const accs = p.accounts.slice();
+  let a = findAcc(p, UI.aid);
+  if (!a) { a = accs.find(x => !x.refOnly && !x.settled && Math.abs(accRem(x)) > 0.5) || accs.find(x => !x.refOnly) || accs[0]; UI.aid = a ? a.id : null; }
+  const t = partyTotals(p), b = m2bal(t.rem);
+  const tel = (p.phone || '').replace(/[^\d+]/g, '');
+  const wa = tel ? (tel.charAt(0) === '0' ? '2' + tel : tel).replace(/^\+/, '') : '';
+  let h = `<div class="m2hero">
+    <div class="l">${p.type === 'supplier' ? 'مورد' : 'مقاول'}${p.trade ? ' · ' + esc(p.trade) : ''}</div>
+    <div class="v sm">${b.v ? m2m(b.v) + '<span class="m2cur">ج.م</span>' : 'خالص ✓'}</div>
+    <div class="sub">${b.v ? b.txt + ' — في كل حساباته' : 'مفيش باقي في أي حساب'}</div>
+    <div class="split"><div><span>إجمالي المستحق</span><b>${m2m(t.dues)}</b></div><div><span>الواصل</span><b>${m2m(t.paid)}</b></div><div><span>حسابات مفتوحة</span><b>${t.open}</b></div></div>
+    ${tel ? `<a class="act" href="tel:${esc(tel)}">📞 اتصال</a><a class="act" href="https://wa.me/${esc(wa)}" target="_blank" rel="noopener">واتساب</a>` : ''}
+  </div>`;
+  if (!a) return h + '<div class="m2empty"><div class="big">📂</div>مفيش حسابات — الحساب الجديد بيتعمل من اللاب</div>';
+  if (accs.length > 1) h += `<div class="m2h" style="margin-top:6px"><b>الحسابات (${accs.length})</b></div>
+    <div class="m2strip" id="m2accs">${accs.map(x => { const r = m2bal(accRem(x));
+      return `<div class="m2pj ${x.id === a.id ? 'on' : ''}" ${x.id === a.id ? 'id="m2accOn"' : ''} onclick="UI.aid='${x.id}';M2.ledN=40;render()">
+        <div class="n">${esc(x.name)}</div><div class="k">${esc(accProject(x))}${x.refOnly ? ' · مرجع' : ''}</div>
+        <div class="v ${x.settled || !r.v ? 'c-emer' : r.cls}" style="margin-top:4px">${x.settled || !r.v ? 'خالص' : m2m(r.v)}</div></div>`; }).join('')}</div>`;
+  const d = accDues(a), rem = accRem(a), rb = m2bal(rem), paid = accPaid(a);
+  const ret = accRetHeld(a), adv = accAdvOut(a), sch = accSched(a);
+  h += `<div class="m2card"><div class="m2acct"><div class="n">${esc(a.name)}</div>
+      <span class="m2tag gold">${esc(accProject(a))}</span>${a.settled ? '<span class="m2tag emer">خالص ومتصفّي</span>' : ''}${a.refOnly ? '<span class="m2tag">حساب مرجعي</span>' : ''}${a.mode === 'lump' ? '<span class="m2tag">مقطوعية ' + fmt(a.agreed) + '</span>' : ''}</div>
+    <div class="m2stats" style="box-shadow:none;margin:6px 0 0;border-top:1px solid #F1F5F9;border-radius:0">
+      <div><span>المستحق</span><b>${d === null ? '—' : m2m(d)}</b></div>
+      <div><span>الواصل</span><b class="c-emer">${m2m(paid)}</b></div>
+      <div><span>${rb.v ? rb.txt : 'الباقي'}</span><b class="${rb.cls}">${rb.v ? m2m(rb.v) : 'خالص'}</b></div></div>
+    ${ret > 0.5 ? `<div class="m2info"><span>محتجز ضمان</span><b>${m2m(ret)}</b></div>` : ''}
+    ${adv > 0.5 ? `<div class="m2info"><span>سلف لسه ما اتخصمتش</span><b>${m2m(adv)}</b></div>` : ''}
+    ${sch > 0.5 ? `<div class="m2info"><span>مستحق مؤجل / شيكات</span><b>${m2m(sch)}</b></div>` : ''}
+  </div>
+  <div class="m2acts">
+    <button class="m2btn pay" onclick="openPay('${p.id}','${a.id}')">💸 سداد</button>
+    <button class="m2btn item" onclick="openItem('${p.id}','${a.id}')">${p.type === 'supplier' ? '🛒 فاتورة' : '🧱 بند'}</button>
+  </div>`;
+  /* الدفتر — الأحدث فوق، والرصيد بعد كل حركة زي دفتر اللاب بالظبط */
+  const key = p.id + ':' + a.id; if (M2.ledKey !== key) { M2.ledKey = key; M2.ledN = 40; }
+  const _lg = ledger(a), rows = _lg.filter(r => r.k !== 'adj').reverse().concat(_lg.filter(r => r.k === 'adj')), pend = m2pendIds();
+  h += `<div class="m2h"><b>الدفتر <span class="m2tag">${rows.length} حركة</span></b></div>
+  <div class="m2card">${rows.slice(0, M2.ledN).map(r => {
+    if (r.k === 'adj') return `<div class="m2row"><span class="av">±</span><span class="tx"><div class="t">${esc(r.desc)}</div></span><span class="am"><b>${m2m(r.amount)}</b></span></div>`;
+    const pay = r.k === 'p', pd = pend.has(r.id);
+    const sub = pay ? [m2d(r.date), r.method, r.recv ? 'استلمها ' + r.recv : '', r.cheque ? 'شيك ' + r.cheque : ''].filter(Boolean).join(' · ')
+      : [m2d(r.date), num(r.qty) && num(r.price) ? fmt2(r.qty) + ' ' + (r.unit || '') + ' × ' + fmt2(r.price) : '', r.floor, r.loc, num(r.pct) && num(r.pct) != 100 ? 'إنجاز ' + fmt2(r.pct) + '%' : ''].filter(Boolean).join(' · ');
+    const kind = pay ? (r.kind === 'advance' ? '<span class="m2tag blue">سلفة</span>' : r.kind === 'sched' ? '<span class="m2tag amber">مؤجل</span>' : '') : (r.extra ? '<span class="m2tag gold">إضافي</span>' : '');
+    return `<a class="m2row ${pd ? 'pend' : ''}" href="javascript:void 0" onclick="${pay ? 'openPay' : 'openItem'}('${p.id}','${a.id}','${r.id}')">
+      <span class="av ${pay ? 'pay' : 'item'}">${pay ? '💸' : '🧱'}</span>
+      <span class="tx"><div class="t wrap">${esc(r.desc || '—')} ${kind}</div><div class="s wrap">${esc(sub)}${pd ? ' · ⏳ لسه ما اتبعتش' : ''}</div></span>
+      <span class="am"><b class="${pay ? 'c-emer' : ''}">${pay ? '−' : ''}${m2m(r.amount)}</b><small>الرصيد ${fmt(r.bal)}</small></span></a>`;
+  }).join('') || '<div class="m2empty"><div class="big">📒</div>الحساب لسه فاضي — سجّل أول بند أو سداد</div>'}
+  ${rows.length > M2.ledN ? `<button class="m2more" onclick="M2.ledN+=60;render()">اعرض حركات أقدم (${rows.length - M2.ledN})</button>` : ''}</div>`;
+  return h;
+}
+
+/* ---------- المشاريع ---------- */
+function m2Projects() {
+  const list = m2projList().map(n => ({ n, s: projectStats(n) })).sort((a, b) => b.s.gross - a.s.gross);
+  const tot = list.reduce((t, x) => ({ g: t.g + x.s.gross, p: t.p + x.s.paid, r: t.r + x.s.rem }), { g: 0, p: 0, r: 0 });
+  return `<div class="m2hero"><div class="l">إجمالي تكلفة كل المشاريع</div><div class="v">${m2m(tot.g)}<span class="m2cur">ج.م</span></div>
+    <div class="split"><div><span>المصروف فعلاً</span><b>${m2m(tot.p)}</b></div><div><span>الباقي المستحق</span><b>${m2m(tot.r)}</b></div><div><span>عدد المشاريع</span><b>${list.length}</b></div></div></div>
+  ${list.map(x => { const s = x.s, pc = s.gross > 0 ? Math.min(100, s.paid / s.gross * 100) : 0, un = x.n === UNASSIGNED;
+    return `<div class="m2card" onclick="go('m2proj','${m2q(x.n)}')" style="cursor:pointer">
+      <div class="m2acct" style="display:flex;justify-content:space-between;align-items:center"><div><div class="n ${un ? 'c-red' : ''}">${esc(x.n)}</div>
+        <span class="m2tag">${s.accs} حساب</span>${un ? '<span class="m2tag red">محتاج توزيع من اللاب</span>' : ''}</div><span class="chev" style="color:#CBD5E1;font-size:22px">‹</span></div>
+      <div class="m2stats" style="box-shadow:none;margin:6px 0 0;border-radius:0">
+        <div><span>التكلفة</span><b>${m2m(s.gross)}</b></div><div><span>المصروف</span><b class="c-emer">${m2m(s.paid)}</b></div>
+        <div><span>الباقي</span><b class="${s.rem > 0.5 ? 'c-amber' : 'c-emer'}">${m2m(s.rem)}</b></div></div>
+      <div style="padding:2px 14px 13px"><div class="m2bar ${pc >= 99.5 ? 'done' : ''}"><i style="width:${pc.toFixed(0)}%"></i></div>
+        <div style="font-size:11.5px;color:var(--mut);margin-top:5px">اتصرف ${Math.round(pc)}% من التكلفة</div></div></div>`; }).join('') || '<div class="m2empty">مفيش مشاريع</div>'}`;
+}
+function m2Proj() {
+  const name = UI.pid, s = projectStats(name);
+  const pc = s.gross > 0 ? Math.min(100, s.paid / s.gross * 100) : 0;
+  let bs = null; try { bs = budgetSummary(name); } catch (e) { }
+  const rows = [];
+  DB.parties.forEach(p => p.accounts.forEach(a => {
+    if (a.refOnly) return;
+    let sp; try { sp = accProjectSplit(a); } catch (e) { return; }
+    if (sp[name] === undefined) return;
+    rows.push({ p, a, cost: sp[name] });
+  }));
+  rows.sort((x, y) => (isCarry(x.p) ? 1 : 0) - (isCarry(y.p) ? 1 : 0) || y.cost - x.cost);
+  const info = (l, v, cls) => `<div class="m2info"><span>${l}</span><b class="${cls || ''}">${v}</b></div>`;
+  return `<div class="m2hero"><div class="l">تكلفة مشروع ${esc(name)}</div><div class="v">${m2m(s.gross)}<span class="m2cur">ج.م</span></div>
+    <div class="m2bar ${pc >= 99.5 ? 'done' : ''}" style="background:rgba(255,255,255,.18);margin-top:10px"><i style="width:${pc.toFixed(0)}%"></i></div>
+    <div class="split"><div><span>المصروف فعلاً</span><b>${m2m(s.paid)}</b></div><div><span>الباقي المستحق</span><b>${m2m(s.rem)}</b></div><div><span>نسبة الصرف</span><b>${Math.round(pc)}%</b></div></div></div>
+  <div class="m2card">
+    ${info(s.conRem < -0.5 ? 'لنا عند المقاولين' : 'باقي للمقاولين', m2m(Math.abs(s.conRem)), s.conRem > 0.5 ? 'c-amber' : s.conRem < -0.5 ? 'c-blue' : '')}
+    ${info(s.supRem < -0.5 ? 'لنا عند الموردين' : 'باقي للموردين', m2m(Math.abs(s.supRem)), s.supRem > 0.5 ? 'c-amber' : s.supRem < -0.5 ? 'c-blue' : '')}
+    ${info('اتدفع مقاولين / موردين', m2m(s.con) + ' / ' + m2m(s.sup))}
+    ${s.exp || s.labor ? info('مصروفات عمومية / عمالة', m2m(s.exp) + ' / ' + m2m(s.labor)) : ''}
+    ${s.carryGross > 0.5 ? info('رصيد سابق مرحّل', m2m(s.carryGross)) : ''}
+    ${bs && bs.b && bs.b.total ? info('الميزانية المعتمدة', m2m(bs.b.total)) + info(bs.avail < 0 ? 'تجاوز الميزانية' : 'متاح من الميزانية', m2m(Math.abs(bs.avail)), bs.avail < 0 ? 'c-red' : 'c-emer') : ''}
+    ${bs && bs.b && bs.b.area ? info('تكلفة المتر (' + fmt(bs.b.area) + ' م²)', m2m(bs.perM2Committed) + ' ج.م') : ''}
+    ${bs && bs.b && bs.b.units ? info('تكلفة الـ' + esc(bs.b.unitLabel) + ' (' + bs.b.units + ')', m2m(bs.perUnitCommitted)) : ''}
+  </div>
+  <div class="m2h"><b>الحسابات على المشروع <span class="m2tag">${rows.length}</span></b></div>
+  <div class="m2card">${rows.map(x => { const r = m2bal(accRem(x.a));
+    return `<a class="m2row" href="javascript:void 0" onclick="go('party','${x.p.id}','${x.a.id}')">
+      <span class="av ${isCarry(x.p) ? '' : x.p.type === 'supplier' ? 'sup' : ''}">${esc((x.p.name || '؟').trim().charAt(0))}</span>
+      <span class="tx"><div class="t">${esc(x.p.name)}</div><div class="s">${esc(x.a.name)} · ${x.a.settled || !r.v ? 'خالص' : r.txt + ' ' + fmt(r.v)}</div></span>
+      <span class="am"><b>${m2m(x.cost)}</b><small>تكلفته هنا</small></span></a>`; }).join('') || '<div class="m2empty">مفيش حسابات على المشروع ده</div>'}</div>`;
+}
+
+/* ---------- المزيد ---------- */
+function m2More() {
+  const row = (ic, cls, t, s, on) => `<a class="m2row" href="javascript:void 0" onclick="${on}"><span class="av ic ${cls}">${ic}</span>
+    <span class="tx"><div class="t">${t}</div>${s ? `<div class="s">${s}</div>` : ''}</span><span class="chev">‹</span></a>`;
+  const pend = mobPendingCount();
+  return `<div class="m2menu">
+  <div class="m2h" style="margin-top:4px"><b>الحسابات</b></div>
+  <div class="m2card">
+    ${row('⏰', 'y', 'المستحقات', 'كل اللي ليه باقي، مرتبين', "go('due')")}
+    ${row('↔', 's', 'كل الحركات', 'البنود والسدادات بالتاريخ', "go('moves')")}
+    ${row('📅', 'b', 'الملخص الأسبوعي', 'اللي اتصرف واتسجل الأسبوع ده', "go('weekly')")}
+    ${row('💵', 'g', 'الخزنة والتدفق', '', "go('cash')")}
+    ${row('🔒', 's', 'المحتجز والسلف', '', "go('retention')")}
+  </div>
+  <div class="m2h"><b>مصاريف تانية</b></div>
+  <div class="m2card">
+    ${row('💳', 'p', 'مصروفات عمومية', '', "go('expenses')")}
+    ${row('👷', 'y', 'العمالة اليومية', '', "go('labor')")}
+    ${row('🎒', 'b', 'العُهد', '', "go('custody')")}
+    ${row('💰', 'g', 'الإيرادات', '', "go('income')")}
+  </div>
+  <div class="m2h"><b>المشاريع والأسعار</b></div>
+  <div class="m2card">
+    ${row('⚖', 's', 'مقارنة المشاريع', '', "go('compare')")}
+    ${row('🏷', 'y', 'أسعار المواد', '', "go('prices')")}
+    ${row('📐', 'b', 'أسعار الوحدة', '', "go('rates')")}
+  </div>
+  <div class="m2h"><b>الموبايل</b></div>
+  <div class="m2card">
+    ${row('⇅', pend ? 'y' : 'g', 'المزامنة مع اللاب', pend ? pend + ' حركة لسه ما اتبعتتش' : 'كله واصل اللاب ✓', "go('sync')")}
+    ${row('🔑', 's', 'كلمة سر الموبايل', '', 'plSettings()')}
+    ${row('🔒', 'r', 'اقفل دلوقتي', '', 'plLockNow()')}
+    ${row('🩺', 's', 'حالة البرنامج', '', "go('diag')")}
+  </div>
+  <div style="text-align:center;color:#94A3B8;font-size:11.5px;margin-top:6px">نسخة الموبايل ${M2_VER}</div></div>`;
+}
+
+/* ---------- المزامنة ---------- */
+function m2Sync() {
+  const tm = s => s ? dsp(s.slice(0, 10)) + ' — ' + new Date(s).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '—';
+  const pend = mobPendingCount(), ok = !MOB.lastErr && navigator.onLine;
+  return `<div class="m2hero"><div class="l">المزامنة مع اللاب</div>
+    <div class="v sm">${MOB.busy ? 'بيزامن…' : pend ? pend + ' حركة مستنية' : ok ? 'كله واصل ✓' : 'مفيش اتصال'}</div>
+    <div class="sub">السداد والبند بيتسجلوا هنا على طول، واللاب بيدخّلهم أول ما يتفتح</div>
+    <a class="act" href="javascript:void 0" onclick="mobSync(true)">↻ زامن دلوقتي</a></div>
+  <div class="m2card">
+    <div class="m2info"><span>آخر نسخة من اللاب</span><b>${tm(MOB.baseAt)}</b></div>
+    <div class="m2info"><span>آخر مزامنة</span><b>${tm(MOB.lastPull)}</b></div>
+    <div class="m2info"><span>النت</span><b class="${navigator.onLine ? 'c-emer' : 'c-red'}">${navigator.onLine ? 'شغال' : 'مفيش'}</b></div>
+    ${MOB.lastErr ? `<div class="m2info"><span>آخر مشكلة</span><b class="c-red">${esc(MOB.lastErr)}</b></div>` : ''}
+  </div>
+  <div class="m2h"><b>حركات من الموبايل في الطريق للاب <span class="m2tag">${MOB.outbox.length}</span></b></div>
+  <div class="m2card">${MOB.outbox.map(e => { const r = mobRowOf(e) || {}, item = e.kind === 'item';
+    const st = e.orphan ? '<span class="m2tag red">الحساب مش موجود على اللاب</span>' : e.sentRev < e.rev ? '<span class="m2tag amber">لسه على الموبايل</span>' : '<span class="m2tag blue">اتبعت ✓</span>';
+    return `<div class="m2row"><span class="av ${item ? 'item' : 'pay'}">${item ? '🧱' : '💸'}</span>
+      <span class="tx"><div class="t">${esc(e.pname || '')}</div><div class="s wrap">${esc(e.aname || '')}${item ? ' · ' + esc(r.desc || '') : ''} · ${m2d(r.date)}<br>${st}</div></span>
+      <span class="am"><b>${e.del ? '<s>' + fmt(r.amount) + '</s>' : m2m(r.amount)}</b><small>${e.del ? 'مسح' : e.base ? 'تعديل' : 'جديد'}</small></span></div>`; }).join('')
+    || '<div class="m2empty"><div class="big">✅</div>مفيش — كله وصل اللاب</div>'}</div>
+  <button class="m2btn wh full" onclick="mobResetToLaptop()">اعرض نسخة اللاب زي ما هي</button>
+  <button class="m2btn wh full" onclick="UI.view='setup';render()">تغيير الربط</button>`;
+}
+
+/* ---------- الشيتات: إضافة / اختيار طرف للسداد ---------- */
+function m2Sheet(title, body) {
+  m2CloseSheet();
+  const d = document.createElement('div'); d.className = 'm2sheet no-print'; d.id = 'm2sheet';
+  d.onclick = e => { if (e.target === d) m2CloseSheet(); };
+  d.innerHTML = `<div class="sh"><div class="grab"></div><div class="st"><span>${title}</span><button onclick="m2CloseSheet()" aria-label="إغلاق">✕</button></div><div class="sb">${body}</div></div>`;
+  document.body.appendChild(d);
+}
+function m2CloseSheet() { const d = document.getElementById('m2sheet'); if (d) d.remove(); }
+function m2Add() {
+  const p = UI.view === 'party' ? findParty(UI.pid) : null, a = p ? findAcc(p, UI.aid) : null;
+  const row = (ic, cls, t, s, on) => `<a class="m2row" href="javascript:void 0" onclick="m2CloseSheet();${on}"><span class="av ic ${cls}">${ic}</span>
+    <span class="tx"><div class="t">${t}</div><div class="s wrap">${s}</div></span><span class="chev">‹</span></a>`;
+  m2Sheet('تسجيل جديد', `
+    ${p && a ? `<div class="m2card">
+      ${row('💸', 'g', 'سداد لـ ' + esc(p.name), 'في حساب «' + esc(a.name) + '»', `openPay('${p.id}','${a.id}')`)}
+      ${row(p.type === 'supplier' ? '🛒' : '🧱', 'y', (p.type === 'supplier' ? 'فاتورة توريد' : 'بند أعمال') + ' لـ ' + esc(p.name), 'في حساب «' + esc(a.name) + '»', `openItem('${p.id}','${a.id}')`)}
+    </div><div class="m2h"><b>لحد تاني</b></div>` : ''}
+    <div class="m2card">
+      ${row('💸', 'g', 'سداد', 'دفعت فلوس لمقاول أو مورد', 'm2PickPay()')}
+      ${row('🧱', 'y', 'بند مقاول', 'شغل اتعمل — وتقدر تسجّل الدفع معاه', 'openWork()')}
+      ${row('🛒', 'b', 'مشترى من مورد', 'توريد أو فاتورة — وتقدر تسجّل الدفع معاه', 'openPurchase()')}
+      ${typeof openBatchPay === 'function' ? row('🧾', 'p', 'صرفية اليوم', 'سدادات لأكتر من واحد مرة واحدة', 'openBatchPay()') : ''}
+    </div>`);
+}
+/* سداد: اختار الطرف ← (لو ليه كذا حساب) اختار الحساب ← فورم السداد */
+function m2PickRows(q) {
+  q = (q || '').trim().toLowerCase();
+  return m2people().map(p => ({ p, rem: partyTotals(p).rem })).filter(x => x.p.accounts.some(a => !a.refOnly) && (!q || (x.p.name + ' ' + x.p.trade).toLowerCase().includes(q)))
+    .sort((a, b) => b.rem - a.rem).map(x => { const b = m2bal(x.rem);
+      return `<a class="m2row" href="javascript:void 0" onclick="m2PickAcc('${x.p.id}')"><span class="av ${x.p.type === 'supplier' ? 'sup' : ''}">${esc(x.p.name.trim().charAt(0))}</span>
+        <span class="tx"><div class="t">${esc(x.p.name)}</div><div class="s">${x.p.type === 'supplier' ? 'مورد' : 'مقاول'}${x.p.trade ? ' · ' + esc(x.p.trade) : ''}</div></span>
+        <span class="am"><b class="${b.cls}">${b.v ? m2m(b.v) : 'خالص'}</b>${b.v ? `<small>${b.txt}</small>` : ''}</span></a>`; }).join('') || '<div class="m2empty">مفيش حد بالاسم ده</div>';
+}
+function m2PickPay() {
+  m2Sheet('سداد لمين؟', `<input class="q" type="search" placeholder="دوّر بالاسم…" autocomplete="off" oninput="document.getElementById('m2pick').innerHTML=m2PickRows(this.value)">
+    <div class="m2card" id="m2pick">${m2PickRows('')}</div>`);
+}
+function m2PickAcc(pid) {
+  const p = findParty(pid); if (!p) return;
+  const accs = p.accounts.filter(a => !a.refOnly);
+  const open = accs.filter(a => !a.settled);
+  if (accs.length === 1 || open.length === 1) { m2CloseSheet(); return openPay(p.id, (open[0] || accs[0]).id); }
+  m2Sheet('أنهي حساب عند ' + esc(p.name) + '؟', `<div class="m2card">${accs.slice().sort((x, y) => (x.settled ? 1 : 0) - (y.settled ? 1 : 0) || accRem(y) - accRem(x)).map(a => { const r = m2bal(accRem(a));
+    return `<a class="m2row" href="javascript:void 0" onclick="m2CloseSheet();openPay('${p.id}','${a.id}')"><span class="av">📂</span>
+      <span class="tx"><div class="t">${esc(a.name)}</div><div class="s">${esc(accProject(a))}</div></span>
+      <span class="am"><b class="${a.settled || !r.v ? 'c-emer' : r.cls}">${a.settled || !r.v ? 'خالص' : m2m(r.v)}</b>${!a.settled && r.v ? `<small>${r.txt}</small>` : ''}</span></a>`; }).join('')}</div>`);
+}
+
+/* ---------- تركيب الشاشات الجديدة ---------- */
+VIEWS.dash = () => m2Home();
+VIEWS.contractor = () => m2List('contractor');
+VIEWS.supplier = () => m2List('supplier');
+VIEWS.party = () => m2Party();
+VIEWS.projects = () => m2Projects();
+VIEWS.m2proj = () => m2Proj();
+VIEWS.more = () => m2More();
+VIEWS.sync = () => m2Sync();
+
+const M2_TABS = [
+  { k: 'dash', t: 'الرئيسية', i: M2I.home }, { k: 'contractor', t: 'المقاولين', i: M2I.con },
+  { k: 'supplier', t: 'الموردين', i: M2I.sup }, { k: 'projects', t: 'المشاريع', i: M2I.proj }, { k: 'more', t: 'المزيد', i: M2I.more }
+];
+const M2_ROOT = new Set(['dash', 'contractor', 'supplier', 'projects', 'more', 'setup']);
+mobTitle = function () {
+  if (UI.view === 'party') { const p = findParty(UI.pid); return p ? p.name : ''; }
+  if (UI.view === 'm2proj') return 'مشروع ' + (UI.pid || '');
+  if (UI.view === 'dash') return (typeof CO !== 'undefined' && CO.short) || 'حسابات الطنطاوي';
+  if (UI.view === 'more') return 'المزيد';
+  if (UI.view === 'sync') return 'المزامنة';
+  if (UI.view === 'setup') return 'ربط الموبايل';
+  const n = NAVS.find(x => x.k === UI.view); return n ? n.t : 'حسابات الطنطاوي';
+};
+function m2TabOf(v) {
+  if (v === 'party') { const p = findParty(UI.pid); return p ? p.type : 'dash'; }
+  if (v === 'm2proj') return 'projects';
+  return M2_TABS.some(t => t.k === v) ? v : 'more';
+}
+mobPaint = function () {
+  let bar = document.getElementById('mbar');
+  if (!bar) {
+    bar = document.createElement('div'); bar.id = 'mbar'; bar.className = 'mbar no-print'; document.body.appendChild(bar);
+    const tabs = document.createElement('nav'); tabs.id = 'mtabs'; tabs.className = 'mtabs no-print'; document.body.appendChild(tabs);
+  }
+  let fab = document.getElementById('m2fab');
+  if (!fab) { fab = document.createElement('button'); fab.id = 'm2fab'; fab.className = 'm2fab no-print'; fab.innerHTML = M2I.plus + '<span>تسجيل</span>'; fab.onclick = () => m2Add(); document.body.appendChild(fab); }
+  const pend = mobPendingCount(), orphan = MOB.outbox.some(e => e.orphan);
+  const pill = !MOB.cfg ? ['err', 'مش مربوط'] : MOB.busy ? ['wait', 'بيزامن'] : orphan ? ['err', pend + ' ⚠']
+    : pend ? ['wait', pend + ' مستني'] : (!navigator.onLine || MOB.lastErr) ? ['err', 'أوفلاين'] : ['ok', 'متزامن'];
+  const sub = !M2_ROOT.has(UI.view);
+  const hide = locked || !MOB.base || UI.view === 'setup';
+  bar.innerHTML = `${sub ? `<button onclick="m2Back()" aria-label="رجوع">${M2I.back}</button>` : `<img src="${LOGO}" alt="">`}
+    <div class="mt">${esc(mobTitle())}</div>
+    ${hide ? '' : `<button onclick="openSearch()" aria-label="بحث">${M2I.search}</button>`}
+    <button class="mpill ${pill[0]}" onclick="go('sync')"><i></i>${pill[1]}</button>`;
+  const cur = m2TabOf(UI.view);
+  const tabs = document.getElementById('mtabs');
+  tabs.style.display = hide ? 'none' : '';
+  tabs.innerHTML = M2_TABS.map(t => `<a href="javascript:void 0" class="${t.k === cur ? 'on' : ''}" onclick="m2Tab('${t.k}')">${t.i}${t.t}</a>`).join('');
+  fab.style.display = !hide && ['dash', 'contractor', 'supplier'].indexOf(UI.view) > -1 ? '' : 'none';
+};
+function m2Tab(k) { navStack = []; go(k); }
+function m2Back() { if (goBackNav() === false) m2Tab(m2TabOf(UI.view) === UI.view ? 'dash' : m2TabOf(UI.view)); window.scrollTo(0, 0); }
+mobMore = function () { m2Tab('more'); };
+
+/* بعد كل رسمة: نقفل أي شيت، ونوسّط الحساب المختار في الشريط */
+const _m2render = render;
+render = function () {
+  _m2render.apply(this, arguments);
+  m2CloseSheet();
+  const on = document.getElementById('m2accOn'); if (on && on.scrollIntoView) { try { on.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (e) { } }
+};
+/* خانات الفلوس والكميات: كيبورد أرقام */
+function m2Inputs(root) {
+  if (!root) return;
+  root.querySelectorAll('input[data-money]:not([inputmode])').forEach(i => i.setAttribute('inputmode', 'decimal'));
+  root.querySelectorAll('input[data-date]:not([inputmode])').forEach(i => i.setAttribute('inputmode', 'numeric'));
+}
+(function () { const el = document.getElementById('modalRoot'); if (el) new MutationObserver(() => m2Inputs(el)).observe(el, { childList: true, subtree: true }); })();
 </script>
 </body>
 </html>
