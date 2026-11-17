@@ -33,6 +33,13 @@ function linkCode() {
   if (/\/dev$/.test(url)) Logger.log('⚠ الرابط آخره /dev (رابط التجربة). استخدم رابط /exec من Deploy ← Manage deployments.');
   Logger.log('كود الربط (سري — حطه في البرنامج على اللاب ← الإعدادات ← الربط):\n' + url + '#' + P.getProperty('KEY'));
 }
+/* المفتاح: من setup()، أو من ملف secret.gs محلي (var SEED_KEY = '…') لو المشروع اتعمل بـ clasp.
+   ملف secret.gs ده مايتحطش في الريبو أبدًا. */
+function key_() {
+  var k = P.getProperty('KEY');
+  if (!k && typeof SEED_KEY !== 'undefined' && String(SEED_KEY).length >= 24) { P.setProperty('KEY', String(SEED_KEY)); k = String(SEED_KEY); }
+  return k;
+}
 function nowCairo() { return Utilities.formatDate(new Date(), TZ, "yyyy-MM-dd'T'HH:mm:ss"); }
 
 /* ================= التخزين ================= */
@@ -84,7 +91,7 @@ function doGet() { return json_({ ok: true, app: 'tantawy-sales', ver: VER, msg:
 function doPost(e) {
   var b;
   try { b = JSON.parse(e.postData.contents); } catch (x) { return json_({ ok: false, error: 'طلب مش مفهوم' }); }
-  var key = P.getProperty('KEY');
+  var key = key_();
   if (!key || b.key !== key) return json_({ ok: false, code: 'script', error: 'كود الربط غلط' });
   if (b.op !== 'lapSync' && b.op !== 'ping') {          // الموبايل لازم كلمة السر
     var h = P.getProperty('PW_HASH');
